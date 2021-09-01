@@ -31,27 +31,36 @@ def to_email(val):
 
 FIELD_MAP = [
     {"banner": "pidm", "dts_portal": "", "hr": "field_99", "primary_key": True},
-    {"banner": "temp_status", "dts_portal": "", "hr": "field_95",},
-    {"banner": "job_title", "dts_portal": "", "hr": "field_230",},
+    {"banner": "temp_status", "dts_portal": "", "hr": "field_95", },
+    {"banner": "job_title", "dts_portal": "", "hr": "field_230", },
     {"banner": "email", "dts_portal": "", "hr": "field_18", "handler": to_email},
-    {"banner": "empclass_desc", "dts_portal": "", "hr": "field_251",},
-    {"banner": "divn_name", "dts_portal": "", "hr": "field_250",},
-    {"banner": "fullname", "dts_portal": "", "hr": "field_17", "handler": parse_name,},
-    {"banner": "posn", "dts_portal": "", "hr": "field_248",},
+    {"banner": "empclass_desc", "dts_portal": "", "hr": "field_251", },
+    {"banner": "divn_name", "dts_portal": "", "hr": "field_250", },
+    {"banner": "fullname", "dts_portal": "", "hr": "field_17", "handler": parse_name, },
+    {"banner": "posn", "dts_portal": "", "hr": "field_248", },
+    # {"banner": "supervisor_name", "dts_portal": "", "hr": "field_104", } # in knack this field is a dropdown, can it be directly set?
 ]
 
 PASSWORD_FIELD = {"hr": "field_19", "dts_portal": ""}
 USER_STATUS_FIELD = {"hr": "field_20", "dts_portal": ""}
-KNACK_OBJS = {"hr": "object_5"}
+# object_5 is accounts object
+ACCOUNTS_OBJS = {"hr": "object_5"}
 
 
 def drop_empty_positions(records_hr, key="pidm"):
-    """ this data contains vacant positions. so we remove them if the record has no
-    employee ID number, aka pidm """
+    """
+    Data from Banner contains vacant positions. so we remove them if the record has no
+    employee ID number, aka pidm
+    :returns: employee list from banner with vacant positions removed
+    """
     return [r for r in records_hr if r.get(key)]
 
 
 def get_employee_data():
+    """
+    Request hr data from banner
+    :return: employee list from banner with vacant positions removed
+    """
     BANNER_API_KEY = os.getenv("BANNER_API_KEY")
     BANNER_URL = os.getenv("BANNER_URL")
     params = {
@@ -71,6 +80,13 @@ def get_employee_data():
 
 
 def map_records(records_hr, field_map, knack_app_name):
+    """
+    Map banner data to knack field names
+    :param records_hr: list, records from banner
+    :param field_map: list of field name mapping objects (banner -> knack) and optional field handler functions
+    :param knack_app_name: string, which fields to map to, hr or dts
+    :return: list, records from banner with knack field_names
+    """
     records_mapped = []
     for record in records_hr:
         record_mapped = {}
@@ -86,6 +102,11 @@ def map_records(records_hr, field_map, knack_app_name):
 
 
 def get_primary_key_field(field_map, knack_app_name):
+    """
+    :param field_map: banner and knack field mappings
+    :param knack_app_name: knack app name to lookup in field_map
+    :return: primary key field name, string
+    """
     pk_field = [f for f in field_map if f.get("primary_key")][0]
     return pk_field[knack_app_name]
 
@@ -107,8 +128,15 @@ def is_different(record_hr, record_knack):
 
 
 def build_payload(records_knack, records_hr, pk_field, status_field):
-    """ compare the hr records against knack records and return those records which
-    are different are new """
+    """
+    compare the hr records against knack records and return those records which
+    are different are new
+    :param records_knack: Records from knack (knackpy record format)
+    :param records_hr: field mapped records from banner
+    :param pk_field: field name for primary key in knack app
+    :param status_field: field name for status field in knack app
+    :return:
+    """
     payload = []
     for r_hr in records_hr:
         matched = False
@@ -124,7 +152,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field):
         if not matched:
             # Knack's default user status is inactive. so set new users' status to
             # active
-            payload[status_field] = "active"
+            r_hr[status_field] = "active"
             payload.append(r_hr)
 
     # identify users which are no longer in Banner and therefore need to be deactivated
@@ -184,18 +212,21 @@ def main():
     KNACK_APP_ID = os.getenv("KNACK_APP_ID")
     KNACK_API_KEY = os.getenv("KNACK_API_KEY")
 
-    records_hr = get_employee_data()
+    records_hr_banner = get_employee_data()
 
-    knack_obj = KNACK_OBJS[KNACK_APP_NAME]
+    knack_obj = ACCOUNTS_OBJS[KNACK_APP_NAME]
     app = knackpy.App(app_id=KNACK_APP_ID, api_key=KNACK_API_KEY)
+    # use knackpy to get records from knack hr object
     records_knack = app.get(knack_obj)
-    pk_field = get_primary_key_field(FIELD_MAP, KNACK_APP_NAME)
-    records_mapped = map_records(records_hr, FIELD_MAP, KNACK_APP_NAME)
+    records_mapped = map_records(records_hr_banner, FIELD_MAP, KNACK_APP_NAME)
 
+    pk_field = get_primary_key_field(FIELD_MAP, KNACK_APP_NAME)
     status_field = USER_STATUS_FIELD[KNACK_APP_NAME]
     payload = build_payload(records_knack, records_mapped, pk_field, status_field)
 
+    # field_19
     password_field = PASSWORD_FIELD[KNACK_APP_NAME]
+    # set_passwords generates passwords for the payload
     set_passwords(payload, password_field)
 
     print(f"{len(payload)} records to process.")
