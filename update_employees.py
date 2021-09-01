@@ -112,6 +112,12 @@ def get_primary_key_field(field_map, knack_app_name):
 
 
 def is_different(record_hr, record_knack):
+    """
+    compare records by comparing field values
+    :param record_hr: record from banner
+    :param record_knack: record from knack
+    :return: True if any values do not match between records
+    """
     for key, val in record_hr.items():
         val_knack = record_knack[key]
         # unpack dicts, because the knack name field contains a "formatted_value" key
@@ -138,6 +144,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field):
     :return:
     """
     payload = []
+    # for each banner record check knack records comparing pk to find matches
     for r_hr in records_hr:
         matched = False
         pk_hr = r_hr[pk_field]
@@ -146,9 +153,11 @@ def build_payload(records_knack, records_hr, pk_field, status_field):
             if pk_hr == pk_knack:
                 matched = True
                 r_hr["id"] = r_knack["id"]
+                # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     payload.append(r_hr)
                 break
+        # employee id number not in knack records
         if not matched:
             # Knack's default user status is inactive. so set new users' status to
             # active
@@ -163,10 +172,10 @@ def build_payload(records_knack, records_hr, pk_field, status_field):
             pk_hr = r_hr[pk_field]
             if pk_hr == pk_knack:
                 matched = True
-                continue
+                continue # should this be break?
         if not matched and r_knack[status_field] != "inactive":
             record_id = r_knack["id"]
-            payload.append({"id": record_id, status_field: "inactive"})
+            payload.append({"id": record_id, status_field: "inactive"}) # this isnt the whole record?
 
     return payload
 
@@ -227,6 +236,7 @@ def main():
     # field_19
     password_field = PASSWORD_FIELD[KNACK_APP_NAME]
     # set_passwords generates passwords for the payload
+    # are we overwriting passwords for current deactivated users? does it matter?
     set_passwords(payload, password_field)
 
     print(f"{len(payload)} records to process.")
