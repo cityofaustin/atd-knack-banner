@@ -10,11 +10,13 @@ import os
 import secrets
 import string
 import sys
+import csv
 
 import knackpy
 import requests
 import wddx
 
+from banner_data import raw_banner_data
 
 def parse_name(full_name):
     name_parts = full_name.split(",")
@@ -26,6 +28,8 @@ def to_string(val):
 
 
 def to_email(val):
+    if val.lower()=="":
+        print("no email")
     return {"email": val.lower()}
 
 
@@ -69,14 +73,40 @@ def get_employee_data():
         "setApiKey": BANNER_API_KEY,
     }
     #  get data in wddx format
-    res = requests.get(BANNER_URL, params=params)
+    # res = requests.get(BANNER_URL, params=params)
     #  use module to parse wddx tags
     #  and read data as list (which is actually a JSON string)
-    json_raw = wddx.loads(res.text)
+    #json_raw = wddx.loads(res.text)
     #  remove weird leading slashes from data contents
-    json_clean = json_raw[0].replace("//", "")
-    records_hr_unfiltered = json.loads(json_clean)
+    # json_clean = json_raw[0].replace("//", "")
+    #json_clean = raw_banner_data[0].
+    #records_hr_unfiltered = json.loads(json_clean)
+    records_hr_unfiltered = raw_banner_data
     return drop_empty_positions(records_hr_unfiltered)
+
+
+def get_emails_data():
+    """
+    download emails from G-Drive
+    :return: list of emails
+    """
+    # connect to gdrive and download (?) csv
+    # or read the data from the online csv?
+    employee_emails = []
+
+    with open("emails.csv", "r") as emails:
+        reader = csv.DictReader(emails)
+        data = [row for row in reader]
+
+    for row in data:
+        employee = {
+            "pidm": row.get("employeeID"),
+            "email": row.get("EmailAddress"),
+            "name": row.get("Name")
+        }
+        employee_emails.append(employee)
+
+    return employee_emails
 
 
 def map_records(records_hr, field_map, knack_app_name):
@@ -144,6 +174,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field):
     :return:
     """
     payload = []
+    print(f"Generating payload...")
     # for each banner record check knack records comparing pk to find matches
     for r_hr in records_hr:
         matched = False
@@ -164,18 +195,32 @@ def build_payload(records_knack, records_hr, pk_field, status_field):
             r_hr[status_field] = "active"
             payload.append(r_hr)
 
+    print(f"{len(payload)} new accounts to add.")
+
+    inactivate = 0
+    knack_missing_ids = 0
     # identify users which are no longer in Banner and therefore need to be deactivated
     for r_knack in records_knack:
         matched = False
         pk_knack = r_knack[pk_field]
+        if pk_knack is None:
+            # what happens to records in knack that don't have ids?
+            # are they overwritten? will there be duplicates
+            knack_missing_ids = knack_missing_ids + 1
         for r_hr in records_hr:
             pk_hr = r_hr[pk_field]
             if pk_hr == pk_knack:
                 matched = True
-                continue # should this be break?
+                break
         if not matched and r_knack[status_field] != "inactive":
             record_id = r_knack["id"]
+            inactivate = inactivate + 1
             payload.append({"id": record_id, status_field: "inactive"}) # this isnt the whole record?
+
+    print(f"{inactivate} records to mark inactive.")
+
+    with open('a_file.txt', 'w') as fout:
+        json.dump(payload, fout)
 
     return payload
 
@@ -223,6 +268,8 @@ def main():
 
     records_hr_banner = get_employee_data()
 
+    employee_emails = get_emails_data()
+
     knack_obj = ACCOUNTS_OBJS[KNACK_APP_NAME]
     app = knackpy.App(app_id=KNACK_APP_ID, api_key=KNACK_API_KEY)
     # use knackpy to get records from knack hr object
@@ -254,6 +301,7 @@ def main():
             else:
                 raise e
 
+    print(f"Update complete. {len(errors)} errors.")
     return errors
 
 
