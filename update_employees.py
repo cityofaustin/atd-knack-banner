@@ -191,7 +191,7 @@ def is_different(record_hr, record_knack):
     return False
 
 
-def build_payload(records_knack, records_hr, pk_field, status_field):
+def build_payload(records_knack, records_hr, pk_field, status_field, password_field):
     """
     compare the hr records against knack records and return those records which
     are different are new
@@ -220,6 +220,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field):
         if not matched:
             # Knack's default user status is inactive. so set new users' status to
             # active
+            r_hr[password_field] = random_password()
             r_hr[status_field] = "active"
             payload.append(r_hr)
 
@@ -303,17 +304,12 @@ def main():
     app = knackpy.App(app_id=KNACK_APP_ID, api_key=KNACK_API_KEY)
     # use knackpy to get records from knack hr object
     records_knack = app.get(knack_obj)
-    records_mapped = map_records(records_hr_banner, FIELD_MAP, KNACK_APP_NAME)
+    records_mapped = map_records(records_hr_emails, FIELD_MAP, KNACK_APP_NAME)
 
     pk_field = get_primary_key_field(FIELD_MAP, KNACK_APP_NAME)
     status_field = USER_STATUS_FIELD[KNACK_APP_NAME]
-    payload = build_payload(records_knack, records_mapped, pk_field, status_field)
-
-    # field_19
     password_field = PASSWORD_FIELD[KNACK_APP_NAME]
-    # set_passwords generates passwords for the payload
-    # are we overwriting passwords for current deactivated users? does it matter?
-    set_passwords(payload, password_field)
+    payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field)
 
     print(f"{len(payload)} records to process.")
 
