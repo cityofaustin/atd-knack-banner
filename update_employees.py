@@ -18,6 +18,7 @@ import wddx
 
 from banner_data import raw_banner_data
 
+
 def parse_name(full_name):
     name_parts = full_name.split(",")
     return {"first": name_parts[1].strip(), "last": name_parts[0].strip()}
@@ -28,8 +29,6 @@ def to_string(val):
 
 
 def to_email(val):
-    if val.lower()=="":
-        print("no email")
     return {"email": val.lower()}
 
 
@@ -47,7 +46,6 @@ FIELD_MAP = [
 
 PASSWORD_FIELD = {"hr": "field_19", "dts_portal": ""}
 USER_STATUS_FIELD = {"hr": "field_20", "dts_portal": ""}
-# object_5 is accounts object
 ACCOUNTS_OBJS = {"hr": "object_5"}
 
 
@@ -92,21 +90,51 @@ def get_emails_data():
     """
     # connect to gdrive and download (?) csv
     # or read the data from the online csv?
-    employee_emails = []
+    # employee_emails = []
+    employee_emails = {}
 
     with open("emails.csv", "r") as emails:
         reader = csv.DictReader(emails)
         data = [row for row in reader]
 
     for row in data:
-        employee = {
-            "pidm": row.get("employeeID"),
-            "email": row.get("EmailAddress"),
-            "name": row.get("Name")
-        }
-        employee_emails.append(employee)
+        # check if employeeID exists for record
+        if not row.get("employeeID"):
+            print(row)
+        else:
+            # if employee emails is a list of dicts
+            # employee = {
+            #     "pidm": row.get("employeeID"),
+            #     "email": row.get("EmailAddress"),
+            #     "name": row.get("Name")
+            # }
+            # employee_emails.append(employee)
+            employee_emails[row.get("employeeID")] = {
+                "email": row.get("EmailAddress"),
+                "name": row.get("Name")
+            }
 
     return employee_emails
+
+
+def update_emails(records_hr, employee_emails):
+    for r_hr in records_hr:
+        pk_hr = r_hr["pidm"]
+        try:
+            employ = employee_emails[str(pk_hr)]
+            if r_hr["email"] != employ["email"]:
+                r_hr["email"] = employ["email"]
+        except KeyError:
+            print(f'{r_hr["fullname"]} not in email, id {pk_hr}')
+        # if we are doing a list of dicts
+        # for email in employee_emails:
+        #     try:
+        #         if pk_hr == int(email["pidm"]):
+        #             if r_hr["email"] != email["email"]:
+        #                 print(r_hr["email"], email["email"])
+        #     except ValueError:
+        #         continue
+    return records_hr
 
 
 def map_records(records_hr, field_map, knack_app_name):
@@ -269,6 +297,7 @@ def main():
     records_hr_banner = get_employee_data()
 
     employee_emails = get_emails_data()
+    records_hr_emails = update_emails(records_hr_banner, employee_emails)
 
     knack_obj = ACCOUNTS_OBJS[KNACK_APP_NAME]
     app = knackpy.App(app_id=KNACK_APP_ID, api_key=KNACK_API_KEY)
