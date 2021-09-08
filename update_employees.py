@@ -46,6 +46,7 @@ FIELD_MAP = [
 
 PASSWORD_FIELD = {"hr": "field_19", "dts_portal": ""}
 USER_STATUS_FIELD = {"hr": "field_20", "dts_portal": ""}
+EMAIL_FIELD = {"hr": "field_18", "dts_portal": ""}
 ACCOUNTS_OBJS = {"hr": "object_5"}
 
 
@@ -210,7 +211,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     payload.append(r_hr)
-                    print(f"is different {r_hr}")
+                    # print(f"is different {r_hr}")
                 break
         # employee id number not in knack records
         if not exists_in_knack:
@@ -224,17 +225,10 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
     print(f"{len(payload)} new accounts to add.")
 
     inactivate = 0
-    knack_missing_ids = 0
     # identify users which are no longer in Banner and therefore need to be deactivated
     for r_knack in records_knack:
         matched = False
         pk_knack = r_knack[pk_field]
-        # todo: remove the check if pk_knack is none
-        if pk_knack is None:
-            # what happens to records in knack that don't have ids?
-            # are they overwritten? will there be duplicates
-            knack_missing_ids = knack_missing_ids + 1
-            # print(f'missing id in knack {r_knack}')
         for r_hr in records_hr:
             pk_hr = r_hr[pk_field]
             if pk_hr == pk_knack:
@@ -246,10 +240,6 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             payload.append({"id": record_id, status_field: "inactive"})
 
     print(f"{inactivate} records to mark inactive.")
-    print(f"{knack_missing_ids} records in knack missing ids.)
-
-    # with open('a_file.txt', 'w') as fout:
-    #     json.dump(payload, fout)
 
     return payload
 
@@ -282,6 +272,16 @@ def set_passwords(records, password_field):
     return
 
 
+def remove_empty_emails(payload, email_field):
+    """
+    Knack won't allow records to be added without valid emails
+    :param payload: list of records payload
+    :param email_field: email field to check from knack app
+    :return: list of payload records with valid emails
+    """
+    return [r for r in payload if r[email_field]["email"] != "no email"]
+
+
 def format_errors(error_list, record):
     """ generate an error report     that will be mildly readable in an email """
     separator = "-" * 10
@@ -308,22 +308,25 @@ def main():
     pk_field = get_primary_key_field(FIELD_MAP, KNACK_APP_NAME)
     status_field = USER_STATUS_FIELD[KNACK_APP_NAME]
     password_field = PASSWORD_FIELD[KNACK_APP_NAME]
+    email_field = EMAIL_FIELD[KNACK_APP_NAME]
     payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field)
+    cleaned_payload = remove_empty_emails(payload, email_field)
 
-    print(f"{len(payload)} records to process.")
+    print(f"{len(cleaned_payload)} records to process.")
 
     errors = []
-    for record in payload:
+    for record in cleaned_payload:
         method = "update" if record.get("id") else "create"
         try:
             app.record(data=record, method=method, obj=knack_obj)
         except requests.HTTPError as e:
             if e.response.status_code == 400:
                 errors_list = e.response.json()["errors"]
-                print(format_errors(errors_list, record))
+                # print(format_errors(errors_list, record))
                 errors.append(format_errors(errors_list, record))
                 continue
             else:
+                # if we get an error that is not 400, the error is raised, but then we don't see the 400 errors
                 raise e
 
     print(f"Update complete. {len(errors)} errors.")
