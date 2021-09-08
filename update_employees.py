@@ -85,12 +85,9 @@ def get_employee_data():
 
 def get_emails_data():
     """
-    download emails from G-Drive
-    :return: list of emails
+    Read csv from shared drive with employee emails
+    :return: dictionary of emails
     """
-    # connect to gdrive and download (?) csv
-    # or read the data from the online csv?
-    # employee_emails = []
     employee_emails = {}
 
     with open("emails.csv", "r") as emails:
@@ -99,41 +96,38 @@ def get_emails_data():
 
     for row in data:
         # check if employeeID exists for record
-        if not row.get("employeeID"):
-            print(row)
-        else:
-            # if employee emails is a list of dicts
-            # employee = {
-            #     "pidm": row.get("employeeID"),
-            #     "email": row.get("EmailAddress"),
-            #     "name": row.get("Name")
-            # }
-            # employee_emails.append(employee)
+        if row.get("employeeID"):
+            # this will overwrite 999 contractors
             employee_emails[row.get("employeeID")] = {
                 "email": row.get("EmailAddress"),
                 "name": row.get("Name")
             }
+        # temporary to see how many emails don't have ids
+        else:
+            print(row)
 
     return employee_emails
 
 
 def update_emails(records_hr, employee_emails):
+    """
+    Compare records from banner to list of emails from CTM
+    if emails do not match,
+    :param records_hr: list of records from hr
+    :param employee_emails: dictionary of employee ids / emails
+    :return: records_hr with updated emails
+    """
+    in_banner_no_email = 0
     for r_hr in records_hr:
         pk_hr = r_hr["pidm"]
         try:
-            employ = employee_emails[str(pk_hr)]
-            if r_hr["email"] != employ["email"]:
-                r_hr["email"] = employ["email"]
+            employee = employee_emails[str(pk_hr)]
+            if r_hr["email"] != employee["email"]:
+                r_hr["email"] = employee["email"]
         except KeyError:
-            print(f'{r_hr["fullname"]} not in email, id {pk_hr}')
-        # if we are doing a list of dicts
-        # for email in employee_emails:
-        #     try:
-        #         if pk_hr == int(email["pidm"]):
-        #             if r_hr["email"] != email["email"]:
-        #                 print(r_hr["email"], email["email"])
-        #     except ValueError:
-        #         continue
+            in_banner_no_email = in_banner_no_email + 1
+            # print(f'{r_hr["fullname"]} user id is not in email csv, id {pk_hr}')
+    print(f'{in_banner_no_email} records in banner are not in ctm email list (based on user id)')
     return records_hr
 
 
@@ -199,6 +193,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
     :param records_hr: field mapped records from banner
     :param pk_field: field name for primary key in knack app
     :param status_field: field name for status field in knack app
+    :param password_field: field for password in knack app
     :return:
     """
     payload = []
@@ -215,14 +210,17 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     payload.append(r_hr)
+                    print(f"is different {r_hr}")
                 break
         # employee id number not in knack records
         if not matched:
-            # Knack's default user status is inactive. so set new users' status to
-            # active
+            # A password field is required when creating new users. so we generate one here.
+            # The user is expected to sign in with Active Directory, they will not use this password.
             r_hr[password_field] = random_password()
+            # Knack's default user status is inactive. so set new users' status to active
             r_hr[status_field] = "active"
             payload.append(r_hr)
+            print(f"not matched {r_hr}")
 
     print(f"{len(payload)} new accounts to add.")
 
@@ -236,6 +234,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             # what happens to records in knack that don't have ids?
             # are they overwritten? will there be duplicates
             knack_missing_ids = knack_missing_ids + 1
+            print(f'missing id in knack {r_knack}')
         for r_hr in records_hr:
             pk_hr = r_hr[pk_field]
             if pk_hr == pk_knack:
@@ -244,7 +243,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
         if not matched and r_knack[status_field] != "inactive":
             record_id = r_knack["id"]
             inactivate = inactivate + 1
-            payload.append({"id": record_id, status_field: "inactive"}) # this isnt the whole record?
+            payload.append({"id": record_id, status_field: "inactive"})
 
     print(f"{inactivate} records to mark inactive.")
 
@@ -296,15 +295,15 @@ def main():
     KNACK_API_KEY = os.getenv("KNACK_API_KEY")
 
     records_hr_banner = get_employee_data()
-
+    print(len(records_hr_banner))
     employee_emails = get_emails_data()
     records_hr_emails = update_emails(records_hr_banner, employee_emails)
+    records_mapped = map_records(records_hr_emails, FIELD_MAP, KNACK_APP_NAME)
 
+    # use knackpy to get records from knack hr object
     knack_obj = ACCOUNTS_OBJS[KNACK_APP_NAME]
     app = knackpy.App(app_id=KNACK_APP_ID, api_key=KNACK_API_KEY)
-    # use knackpy to get records from knack hr object
     records_knack = app.get(knack_obj)
-    records_mapped = map_records(records_hr_emails, FIELD_MAP, KNACK_APP_NAME)
 
     pk_field = get_primary_key_field(FIELD_MAP, KNACK_APP_NAME)
     status_field = USER_STATUS_FIELD[KNACK_APP_NAME]
@@ -321,6 +320,7 @@ def main():
         except requests.HTTPError as e:
             if e.response.status_code == 400:
                 errors_list = e.response.json()["errors"]
+                print(format_errors(errors_list, record))
                 errors.append(format_errors(errors_list, record))
                 continue
             else:
