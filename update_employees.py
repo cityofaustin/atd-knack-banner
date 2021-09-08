@@ -103,8 +103,8 @@ def get_emails_data():
                 "name": row.get("Name")
             }
         # temporary to see how many emails don't have ids
-        else:
-            print(row)
+        # else:
+        #     print(row)
 
     return employee_emails
 
@@ -198,14 +198,14 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
     """
     payload = []
     print(f"Generating payload...")
-    # for each banner record check knack records comparing pk to find matches
+    # for each banner record check knack records comparing pk to see if banner record exists in knack
     for r_hr in records_hr:
-        matched = False
+        exists_in_knack = False
         pk_hr = r_hr[pk_field]
         for r_knack in records_knack:
             pk_knack = r_knack[pk_field]
             if pk_hr == pk_knack:
-                matched = True
+                exists_in_knack = True
                 r_hr["id"] = r_knack["id"]
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
@@ -213,14 +213,13 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                     print(f"is different {r_hr}")
                 break
         # employee id number not in knack records
-        if not matched:
+        if not exists_in_knack:
             # A password field is required when creating new users. so we generate one here.
             # The user is expected to sign in with Active Directory, they will not use this password.
             r_hr[password_field] = random_password()
             # Knack's default user status is inactive. so set new users' status to active
             r_hr[status_field] = "active"
             payload.append(r_hr)
-            print(f"not matched {r_hr}")
 
     print(f"{len(payload)} new accounts to add.")
 
@@ -230,11 +229,12 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
     for r_knack in records_knack:
         matched = False
         pk_knack = r_knack[pk_field]
+        # todo: remove the check if pk_knack is none
         if pk_knack is None:
             # what happens to records in knack that don't have ids?
             # are they overwritten? will there be duplicates
             knack_missing_ids = knack_missing_ids + 1
-            print(f'missing id in knack {r_knack}')
+            # print(f'missing id in knack {r_knack}')
         for r_hr in records_hr:
             pk_hr = r_hr[pk_field]
             if pk_hr == pk_knack:
@@ -246,9 +246,10 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             payload.append({"id": record_id, status_field: "inactive"})
 
     print(f"{inactivate} records to mark inactive.")
+    print(f"{knack_missing_ids} records in knack missing ids.)
 
-    with open('a_file.txt', 'w') as fout:
-        json.dump(payload, fout)
+    # with open('a_file.txt', 'w') as fout:
+    #     json.dump(payload, fout)
 
     return payload
 
@@ -295,7 +296,6 @@ def main():
     KNACK_API_KEY = os.getenv("KNACK_API_KEY")
 
     records_hr_banner = get_employee_data()
-    print(len(records_hr_banner))
     employee_emails = get_emails_data()
     records_hr_emails = update_emails(records_hr_banner, employee_emails)
     records_mapped = map_records(records_hr_emails, FIELD_MAP, KNACK_APP_NAME)
