@@ -91,21 +91,19 @@ def get_emails_data():
     """
     employee_emails = {}
 
-    with open("emails.csv", "r") as emails:
+    emails_csv = "emails.csv" # todo: replace with path to shared drive file
+    with open(emails_csv, "r") as emails:
         reader = csv.DictReader(emails)
         data = [row for row in reader]
 
     for row in data:
         # check if employeeID exists for record
         if row.get("employeeID"):
-            # this will overwrite 999 contractors
+            # note this will overwrite 999 contractors
             employee_emails[row.get("employeeID")] = {
                 "email": row.get("EmailAddress"),
                 "name": row.get("Name")
             }
-        # temporary to see how many emails don't have ids
-        # else:
-        #     print(row)
 
     return employee_emails
 
@@ -211,7 +209,6 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     payload.append(r_hr)
-                    # print(f"is different {r_hr}")
                 break
         # employee id number not in knack records
         if not exists_in_knack:
@@ -221,8 +218,6 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             # Knack's default user status is inactive. so set new users' status to active
             r_hr[status_field] = "active"
             payload.append(r_hr)
-
-    print(f"{len(payload)} new accounts to add.")
 
     inactivate = 0
     # identify users which are no longer in Banner and therefore need to be deactivated
@@ -283,7 +278,7 @@ def remove_empty_emails(payload, email_field):
 
 
 def format_errors(error_list, record):
-    """ generate an error report     that will be mildly readable in an email """
+    """ generate an error report that will be mildly readable in an email """
     separator = "-" * 10
     msgs = "\n".join([e["message"] for e in error_list])
     record_props = "\n".join([str(v) for v in record.values()])
