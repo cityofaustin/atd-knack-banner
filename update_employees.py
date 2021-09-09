@@ -169,6 +169,8 @@ def is_different(record_hr, record_knack):
     :param record_knack: record from knack
     :return: True if any values do not match between records
     """
+    # todo: check if we are checking active or inactive status
+    # someone goes from active to inactive. and then is rehired with all same information.
     for key, val in record_hr.items():
         val_knack = record_knack[key]
         # unpack dicts, because the knack name field contains a "formatted_value" key
@@ -274,7 +276,16 @@ def remove_empty_emails(payload, email_field):
     :param email_field: email field to check from knack app
     :return: list of payload records with valid emails
     """
-    return [r for r in payload if r[email_field]["email"] != "no email"]
+    cleaned_payload = []
+    # return [r for r in payload if r[email_field]["email"] != "no email"]
+    for r in payload:
+        try:
+            if r[email_field]["email"] != "no email":
+                cleaned_payload.append(r)
+        except KeyError:
+            # if there is no email in the record, we are setting a record as inactive
+            cleaned_payload.append(r)
+    return cleaned_payload
 
 
 def format_errors(error_list, record):
