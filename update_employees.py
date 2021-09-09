@@ -208,6 +208,10 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             if pk_hr == pk_knack:
                 exists_in_knack = True
                 r_hr["id"] = r_knack["id"]
+                # Check if user is marked as inactive in knack
+                # update to active since they are in banner
+                if r_knack[status_field] == "inactive":
+                    r_hr[status_field] = "active"
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     payload.append(r_hr)
