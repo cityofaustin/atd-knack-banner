@@ -319,7 +319,7 @@ def main():
     payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field)
     cleaned_payload = remove_empty_emails(payload, email_field)
 
-    print(f"{len(cleaned_payload)} records to process.")
+    print(f"{len(cleaned_payload)} total records to process in Knack.")
 
     errors = []
     for record in cleaned_payload:
