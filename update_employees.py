@@ -15,8 +15,7 @@ import csv
 import knackpy
 import requests
 import wddx
-
-from banner_data import raw_banner_data
+import smbclient
 
 
 def parse_name(full_name):
@@ -72,15 +71,13 @@ def get_employee_data():
         "setApiKey": BANNER_API_KEY,
     }
     #  get data in wddx format
-    # res = requests.get(BANNER_URL, params=params)
+    res = requests.get(BANNER_URL, params=params)
     #  use module to parse wddx tags
     #  and read data as list (which is actually a JSON string)
-    #json_raw = wddx.loads(res.text)
+    json_raw = wddx.loads(res.text)
     #  remove weird leading slashes from data contents
-    # json_clean = json_raw[0].replace("//", "")
-    #json_clean = raw_banner_data[0].
-    #records_hr_unfiltered = json.loads(json_clean)
-    records_hr_unfiltered = raw_banner_data
+    json_clean = json_raw[0].replace("//", "")
+    records_hr_unfiltered = json.loads(json_clean)
     return drop_empty_positions(records_hr_unfiltered)
 
 
@@ -91,8 +88,10 @@ def get_emails_data():
     """
     employee_emails = {}
 
-    emails_csv = "emails.csv" # todo: replace with path to shared drive file
-    with open(emails_csv, "r") as emails:
+    smbclient.ClientConfig(username=os.getenv("SHAREDDRIVE_USERNAME"), password=os.getenv("SHAREDDRIVE_PASSWORD"))
+
+    emails_csv = os.getenv("SHAREDDRIVE_FILEPATH")
+    with smbclient.open_file(emails_csv, mode='r') as emails:
         reader = csv.DictReader(emails)
         data = [row for row in reader]
 
@@ -125,7 +124,6 @@ def update_emails(records_hr, employee_emails):
                 r_hr["email"] = employee["email"]
         except KeyError:
             in_banner_no_email = in_banner_no_email + 1
-            # print(f'{r_hr["fullname"]} user id is not in email csv, id {pk_hr}')
     print(f'{in_banner_no_email} records in banner are not in ctm email list (based on user id)')
     return records_hr
 
@@ -169,8 +167,6 @@ def is_different(record_hr, record_knack):
     :param record_knack: record from knack
     :return: True if any values do not match between records
     """
-    # todo: check if we are checking active or inactive status
-    # someone goes from active to inactive. and then is rehired with all same information.
     for key, val in record_hr.items():
         val_knack = record_knack[key]
         # unpack dicts, because the knack name field contains a "formatted_value" key
@@ -287,7 +283,8 @@ def remove_empty_emails(payload, email_field):
             if r[email_field]["email"] != "no email":
                 cleaned_payload.append(r)
         except KeyError:
-            # if there is no email in the record, we are setting a record as inactive
+            # if an item in the payload doesn't have an email
+            # that payload item is being set as inactive
             cleaned_payload.append(r)
     return cleaned_payload
 
