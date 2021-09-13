@@ -40,7 +40,6 @@ FIELD_MAP = [
     {"banner": "divn_name", "dts_portal": "", "hr": "field_250", },
     {"banner": "fullname", "dts_portal": "", "hr": "field_17", "handler": parse_name, },
     {"banner": "posn", "dts_portal": "", "hr": "field_248", },
-    # {"banner": "supervisor_name", "dts_portal": "", "hr": "field_104", } # in knack this field is a dropdown, can it be directly set?
 ]
 
 PASSWORD_FIELD = {"hr": "field_19", "dts_portal": ""}
@@ -98,7 +97,7 @@ def get_emails_data():
     for row in data:
         # check if employeeID exists for record
         if row.get("employeeID"):
-            # note this will overwrite 999 contractors
+            # all contractors have ID 999, this will not collect their emails
             employee_emails[row.get("employeeID")] = {
                 "email": row.get("EmailAddress"),
                 "name": row.get("Name")
@@ -205,7 +204,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                 exists_in_knack = True
                 r_hr["id"] = r_knack["id"]
                 # Check if user is marked as inactive in knack
-                # update to active since they are in banner
+                # and update status_field to active since they are in banner
                 if r_knack[status_field] == "inactive":
                     r_hr[status_field] = "active"
                 # if any of the fields differ, add banner record to payload
@@ -277,7 +276,6 @@ def remove_empty_emails(payload, email_field):
     :return: list of payload records with valid emails
     """
     cleaned_payload = []
-    # return [r for r in payload if r[email_field]["email"] != "no email"]
     for r in payload:
         try:
             if r[email_field]["email"] != "no email":
@@ -329,11 +327,10 @@ def main():
         except requests.HTTPError as e:
             if e.response.status_code == 400:
                 errors_list = e.response.json()["errors"]
-                # print(format_errors(errors_list, record))
                 errors.append(format_errors(errors_list, record))
                 continue
             else:
-                # if we get an error that is not 400, the error is raised, but then we don't see the 400 errors
+                # if we get an error that is not 400, that error is raised, but we won't see previous errors
                 raise e
 
     print(f"Update complete. {len(errors)} errors.")
