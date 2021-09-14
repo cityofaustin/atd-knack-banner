@@ -123,7 +123,7 @@ def update_emails(records_hr, employee_emails):
                 r_hr["email"] = employee["email"]
         except KeyError:
             in_banner_no_email = in_banner_no_email + 1
-    print(f'{in_banner_no_email} records in banner are not in ctm email list (based on user id)')
+    logging.info(f'{in_banner_no_email} records in banner are not in ctm email list (based on user id)')
     return records_hr
 
 
@@ -193,7 +193,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
     :return:
     """
     payload = []
-    print(f"Generating payload...")
+    logging.info("Generating payload...")
     # for each banner record check knack records comparing pk to see if banner record exists in knack
     for r_hr in records_hr:
         exists_in_knack = False
@@ -235,7 +235,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             inactivate = inactivate + 1
             payload.append({"id": record_id, status_field: "inactive"})
 
-    print(f"{inactivate} records to mark inactive.")
+    logging.info(f"{inactivate} records to mark inactive.")
 
     return payload
 
@@ -300,6 +300,8 @@ def main():
     KNACK_APP_ID = os.getenv("KNACK_APP_ID")
     KNACK_API_KEY = os.getenv("KNACK_API_KEY")
 
+    logging.info(f'does this work')
+
     records_hr_banner = get_employee_data()
     employee_emails = get_emails_data()
     records_hr_emails = update_emails(records_hr_banner, employee_emails)
@@ -317,7 +319,7 @@ def main():
     payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field)
     cleaned_payload = remove_empty_emails(payload, email_field)
 
-    print(f"{len(cleaned_payload)} total records to process in Knack.")
+    logging.info(f"{len(cleaned_payload)} total records to process in Knack.")
 
     errors = []
     for record in cleaned_payload:
@@ -333,12 +335,12 @@ def main():
                 # if we get an error that is not 400, that error is raised, but we won't see previous errors
                 raise e
 
-    print(f"Update complete. {len(errors)} errors.")
+    logging.info(f"Update complete. {len(errors)} errors.")
     return errors
 
 
 if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stdout)
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     errors = main()
     if errors:
         raise Exception("".join(errors))
