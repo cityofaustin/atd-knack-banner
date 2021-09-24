@@ -18,6 +18,7 @@ import wddx
 import smbclient
 
 
+
 def parse_name(full_name):
     name_parts = full_name.split(",")
     return {"first": name_parts[1].strip(), "last": name_parts[0].strip()}
@@ -89,7 +90,9 @@ def get_emails_data():
 
     smbclient.ClientConfig(username=os.getenv("SHAREDDRIVE_USERNAME"), password=os.getenv("SHAREDDRIVE_PASSWORD"))
 
-    emails_csv = os.getenv("SHAREDDRIVE_FILEPATH")
+    emails_csv_path = os.getenv("SHAREDDRIVE_FILEPATH")
+    # variables stored in json objects do not work well with \, replace / in stored path with \
+    emails_csv = emails_csv_path.replace("/", "\\")
     with smbclient.open_file(emails_csv, mode='r') as emails:
         reader = csv.DictReader(emails)
         data = [row for row in reader]
