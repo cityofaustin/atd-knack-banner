@@ -303,8 +303,6 @@ def main():
     KNACK_APP_ID = os.getenv("KNACK_APP_ID")
     KNACK_API_KEY = os.getenv("KNACK_API_KEY")
 
-    logging.info(f'does this work')
-
     records_hr_banner = get_employee_data()
     employee_emails = get_emails_data()
     records_hr_emails = update_emails(records_hr_banner, employee_emails)
