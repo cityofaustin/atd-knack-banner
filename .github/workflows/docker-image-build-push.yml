@@ -24,6 +24,8 @@ jobs:
         with:
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/atd-knack-banner
+            ${{ secrets.DOCKER_USERNAME }}/atd-knack-banner:production
+            ${{ secrets.DOCKER_USERNAME }}/atd-knack-banner:staging
+            ${{ secrets.DOCKER_USERNAME }}/atd-knack-banner:latest
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
