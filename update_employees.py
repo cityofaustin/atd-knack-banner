@@ -18,7 +18,6 @@ import wddx
 import smbclient
 
 
-
 def parse_name(full_name):
     name_parts = full_name.split(",")
     return {"first": name_parts[1].strip(), "last": name_parts[0].strip()}
@@ -122,7 +121,7 @@ def update_emails(records_hr, employee_emails):
         pk_hr = r_hr["pidm"]
         try:
             employee = employee_emails[str(pk_hr)]
-            if r_hr["email"] != employee["email"]:
+            if r_hr["email"] != employee["email"] and len(employee["email"]) > 0:
                 r_hr["email"] = employee["email"]
         except KeyError:
             in_banner_no_email = in_banner_no_email + 1
