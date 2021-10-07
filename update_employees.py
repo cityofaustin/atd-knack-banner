@@ -60,9 +60,11 @@ PASSWORD_FIELD = {"hr": "field_19", "dts_portal": ""}
 USER_STATUS_FIELD = {"hr": "field_20", "dts_portal": ""}
 EMAIL_FIELD = {"hr": "field_18", "dts_portal": ""}
 # CREATED_DATE = {"hr": "field_267"}
-CREATED_DATE = {"hr": "field_259"}
+CREATED_DATE = {"hr": "field_259"} #todo: remove test version
+CLASS = {"hr": "field_95"}
+# SEPARATED = {"hr": "field_402"}
+SEPARATED = {"hr": "field_261"}
 ACCOUNTS_OBJS = {"hr": "object_5"}
-
 
 
 def drop_empty_positions(records_hr, key="pidm"):
@@ -200,7 +202,8 @@ def is_different(record_hr, record_knack):
     return False
 
 
-def build_payload(records_knack, records_hr, pk_field, status_field, password_field, created_date_field):
+def build_payload(records_knack, records_hr, pk_field, status_field, password_field, created_date_field, class_field,
+                  separated_field):
     """
     compare the hr records against knack records and return those records which
     are different or are new
@@ -225,7 +228,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                 r_hr["id"] = r_knack["id"]
                 # Check if user is marked as inactive in knack
                 # and update status_field to active since they are in banner
-                if r_knack[status_field] == "inactive":
+                if r_knack[status_field] == "inactive" and r_knack[separated_field] != 'Yes':
                     r_hr[status_field] = "active"
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
@@ -251,7 +254,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             if pk_hr == pk_knack:
                 matched = True
                 break
-        if not matched and r_knack[status_field] != "inactive":
+        if not matched and r_knack[status_field] != "inactive" and r_knack[class_field] != "Contract":
             record_id = r_knack["id"]
             inactivate = inactivate + 1
             payload.append({"id": record_id, status_field: "inactive"})
@@ -336,7 +339,10 @@ def main():
     password_field = PASSWORD_FIELD[KNACK_APP_NAME]
     email_field = EMAIL_FIELD[KNACK_APP_NAME]
     created_date_field = CREATED_DATE[KNACK_APP_NAME]
-    payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field, created_date_field)
+    class_field = CLASS[KNACK_APP_NAME]
+    separated_field = SEPARATED[KNACK_APP_NAME]
+    payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field, created_date_field,
+                            class_field, separated_field)
     cleaned_payload = remove_empty_emails(payload, email_field)
 
     logging.info(f"{len(cleaned_payload)} total records to process in Knack.")
