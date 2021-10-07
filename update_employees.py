@@ -11,11 +11,16 @@ import secrets
 import string
 import sys
 import csv
+from datetime import date
+import calendar
 
 import knackpy
 import requests
 import wddx
 import smbclient
+
+months_dict = {name: num for num, name in enumerate(calendar.month_name) if num}
+today = date.today().strftime("%/%d/%Y")
 
 
 def parse_name(full_name):
@@ -31,6 +36,13 @@ def to_email(val):
     return {"email": val.lower()}
 
 
+def format_date(val):
+    # dates in banner are in this format "January, 19 1999 00:00:00"
+    date_pieces = val.split()
+    month = months_dict[date_pieces[0][:-1]]
+    return f"{month}/{date_pieces[1]}/{date_pieces[2]}"
+
+
 FIELD_MAP = [
     {"banner": "pidm", "dts_portal": "", "hr": "field_99", "primary_key": True},
     {"banner": "temp_status", "dts_portal": "", "hr": "field_95", },
@@ -40,12 +52,17 @@ FIELD_MAP = [
     {"banner": "divn_name", "dts_portal": "", "hr": "field_250", },
     {"banner": "fullname", "dts_portal": "", "hr": "field_17", "handler": parse_name, },
     {"banner": "posn", "dts_portal": "", "hr": "field_248", },
+    # {"banner": "hiredate", "dts_portal": "", "hr": "field_264", "handler": format_date}
+    {"banner": "hiredate", "dts_portal": "", "hr": "field_260", "handler": format_date}
 ]
 
 PASSWORD_FIELD = {"hr": "field_19", "dts_portal": ""}
 USER_STATUS_FIELD = {"hr": "field_20", "dts_portal": ""}
 EMAIL_FIELD = {"hr": "field_18", "dts_portal": ""}
+# CREATED_DATE = {"hr": "field_267"}
+CREATED_DATE = {"hr": "field_259"}
 ACCOUNTS_OBJS = {"hr": "object_5"}
+
 
 
 def drop_empty_positions(records_hr, key="pidm"):
@@ -183,15 +200,16 @@ def is_different(record_hr, record_knack):
     return False
 
 
-def build_payload(records_knack, records_hr, pk_field, status_field, password_field):
+def build_payload(records_knack, records_hr, pk_field, status_field, password_field, created_date_field):
     """
     compare the hr records against knack records and return those records which
-    are different are new
+    are different or are new
     :param records_knack: Records from knack (knackpy record format)
     :param records_hr: field mapped records from banner
     :param pk_field: field name for primary key in knack app
     :param status_field: field name for status field in knack app
     :param password_field: field for password in knack app
+    :param created_date_field: field for created date in knack app
     :return:
     """
     payload = []
@@ -220,6 +238,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             r_hr[password_field] = random_password()
             # Knack's default user status is inactive. so set new users' status to active
             r_hr[status_field] = "active"
+            r_hr[created_date_field] = today
             payload.append(r_hr)
 
     inactivate = 0
@@ -316,7 +335,8 @@ def main():
     status_field = USER_STATUS_FIELD[KNACK_APP_NAME]
     password_field = PASSWORD_FIELD[KNACK_APP_NAME]
     email_field = EMAIL_FIELD[KNACK_APP_NAME]
-    payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field)
+    created_date_field = CREATED_DATE[KNACK_APP_NAME]
+    payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field, created_date_field)
     cleaned_payload = remove_empty_emails(payload, email_field)
 
     logging.info(f"{len(cleaned_payload)} total records to process in Knack.")
