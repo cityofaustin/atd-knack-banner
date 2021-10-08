@@ -18,6 +18,7 @@ import requests
 import wddx
 import smbclient
 
+# date dictionary to match months with string format in knack dates
 months_dict = {'January': '01', 'February': '02', 'March': '03', 'April': '04', 'May': '05', 'June': '06', 'July': '07',
                'August': '08', 'September': '09', 'October': '10', 'November': '11', 'December': '12'}
 today = date.today().strftime("%/%d/%Y")
@@ -52,19 +53,16 @@ FIELD_MAP = [
     {"banner": "divn_name", "dts_portal": "", "hr": "field_250", },
     {"banner": "fullname", "dts_portal": "", "hr": "field_17", "handler": parse_name, },
     {"banner": "posn", "dts_portal": "", "hr": "field_248", },
-    # {"banner": "hiredate", "dts_portal": "", "hr": "field_264", "handler": format_date}
-    {"banner": "hiredate", "dts_portal": "", "hr": "field_260", "handler": format_date}
+    {"banner": "hiredate", "dts_portal": "", "hr": "field_264", "handler": format_date}
 ]
 
 NAME_FIELD = {"hr": "field_17"}
 PASSWORD_FIELD = {"hr": "field_19", "dts_portal": ""}
 USER_STATUS_FIELD = {"hr": "field_20", "dts_portal": ""}
 EMAIL_FIELD = {"hr": "field_18", "dts_portal": ""}
-# CREATED_DATE_FIELD = {"hr": "field_267"}
-CREATED_DATE_FIELD = {"hr": "field_259"} #todo: remove test version
+CREATED_DATE_FIELD = {"hr": "field_267"}
 CLASS_FIELD = {"hr": "field_95"}
-# SEPARATED_FIELD = {"hr": "field_402"}
-SEPARATED_FIELD = {"hr": "field_261"}
+SEPARATED_FIELD = {"hr": "field_402"}
 USER_ROLE_FIELD = {"hr": "field_21"}
 ACCOUNTS_OBJS = {"hr": "object_5"}
 
@@ -231,8 +229,9 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             if pk_hr == pk_knack:
                 exists_in_knack = True
                 r_hr["id"] = r_knack["id"]
-                # Check if user is marked as inactive in knack
+                # Check if employee is marked as inactive in knack
                 # and update status_field to active since they are in banner
+                # unless they have been marked as Separated in knack
                 if r_knack[status_field] == "inactive" and not r_knack[separated_field]:
                     r_hr[status_field] = "active"
                 # if any of the fields differ, add banner record to payload
@@ -261,6 +260,7 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             if pk_hr == pk_knack:
                 matched = True
                 break
+        # if employee is a contractor, they wont be in banner. do not mark as inactive
         if not matched and r_knack[status_field] != "inactive" and r_knack[class_field] != "Contract":
             record_id = r_knack["id"]
             inactivate = inactivate + 1
