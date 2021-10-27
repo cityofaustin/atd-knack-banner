@@ -149,6 +149,12 @@ def update_emails(records_hr, employee_emails):
 
 
 def create_placeholder_email(record, name_field):
+    """
+    Emails are required for Knack records. We can guess a temporary email for a user so they can be added to knack
+    :param record: employee record
+    :param name_field: name field in knack
+    :return: temporary placeholder email
+    """
     email = f"{record[name_field]['first']}.{record[name_field]['last']}@austintexas.gov"
     logging.info(f"setting placeholder email {email}")
     return email
@@ -222,6 +228,8 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
     :param class_field: field for class in knack app
     :param separated_field: field if employee is separated in knack app
     :param user_role_field: field in knack app to specify Staff, Supervisor etc
+    :param email_field: field in knack for email
+    :param name_field: field in knack for user's first and last name
     :return:
     """
     payload = []
@@ -285,7 +293,7 @@ def random_password(numchars=32):
     """ generate a random password with at least 1 lowercase, uppercase, and special
     char """
     # i don't know what knack considers a special character, but it's something less
-    # than string.punctation
+    # than string.punctuation
     special_chars = "!#$%&"
     chars = special_chars + string.digits + string.ascii_letters
     while True:
@@ -323,8 +331,6 @@ def remove_empty_emails(payload, email_field, name_field):
             if r[email_field]["email"] != "no email":
                 cleaned_payload.append(r)
                 logging.info(f"Updating: {r[name_field]}")
-            else:
-                print(r)
         except KeyError:
             # if an item in the payload doesn't have an email
             # that payload item is being set as inactive
