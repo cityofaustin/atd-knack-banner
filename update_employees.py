@@ -148,6 +148,12 @@ def update_emails(records_hr, employee_emails):
     return records_hr
 
 
+def create_placeholder_email(record, name_field):
+    email = f"{record[name_field]['first']}.{record[name_field]['last']}@austintexas.gov"
+    logging.info(f"setting placeholder email {email}")
+    return email
+
+
 def map_records(records_hr, field_map, knack_app_name):
     """
     Map banner data to knack field names
@@ -203,7 +209,7 @@ def is_different(record_hr, record_knack):
 
 
 def build_payload(records_knack, records_hr, pk_field, status_field, password_field, created_date_field, class_field,
-                  separated_field, user_role_field):
+                  separated_field, user_role_field, email_field, name_field):
     """
     compare the hr records against knack records and return those records which
     are different or are new
@@ -236,6 +242,8 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                     r_hr[status_field] = "active"
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
+                    if r_hr[email_field]['email'] == 'no email':
+                        r_hr[email_field]['email'] = create_placeholder_email(r_hr, name_field)
                     payload.append(r_hr)
                 break
         # employee id number not in knack records
@@ -248,6 +256,8 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             r_hr[created_date_field] = today
             # set all new users as "Staff", which is profile_7 in knack HR app
             r_hr[user_role_field] = ["profile_7"]
+            if r_hr[email_field]['email'] == 'no email':
+                r_hr[email_field]['email'] = create_placeholder_email(r_hr, name_field)
             payload.append(r_hr)
 
     inactivate = 0
@@ -312,11 +322,14 @@ def remove_empty_emails(payload, email_field, name_field):
         try:
             if r[email_field]["email"] != "no email":
                 cleaned_payload.append(r)
-                logging.info(f"Updating {r[name_field]}")
+                logging.info(f"Updating: {r[name_field]}")
+            else:
+                print(r)
         except KeyError:
             # if an item in the payload doesn't have an email
             # that payload item is being set as inactive
             cleaned_payload.append(r)
+            logging.info(f"Marking inactive: {r[name_field]}")
     return cleaned_payload
 
 
@@ -351,9 +364,9 @@ def main():
     class_field = CLASS_FIELD[KNACK_APP_NAME]
     separated_field = SEPARATED_FIELD[KNACK_APP_NAME]
     name_field = NAME_FIELD[KNACK_APP_NAME]
-    user_role_field =  USER_ROLE_FIELD[KNACK_APP_NAME]
+    user_role_field = USER_ROLE_FIELD[KNACK_APP_NAME]
     payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field, created_date_field,
-                            class_field, separated_field, user_role_field)
+                            class_field, separated_field, user_role_field, email_field, name_field)
     cleaned_payload = remove_empty_emails(payload, email_field, name_field)
 
     logging.info(f"{len(cleaned_payload)} total records to process in Knack.")
