@@ -19,8 +19,20 @@ import wddx
 import smbclient
 
 # date dictionary to match months with string format in knack dates
-months_dict = {'January': '01', 'February': '02', 'March': '03', 'April': '04', 'May': '05', 'June': '06', 'July': '07',
-               'August': '08', 'September': '09', 'October': '10', 'November': '11', 'December': '12'}
+months_dict = {
+    "January": "01",
+    "February": "02",
+    "March": "03",
+    "April": "04",
+    "May": "05",
+    "June": "06",
+    "July": "07",
+    "August": "08",
+    "September": "09",
+    "October": "10",
+    "November": "11",
+    "December": "12",
+}
 today = date.today().strftime("%/%d/%Y")
 
 
@@ -46,14 +58,39 @@ def format_date(val):
 
 FIELD_MAP = [
     {"banner": "pidm", "dts_portal": "", "hr": "field_99", "primary_key": True},
-    {"banner": "temp_status", "dts_portal": "", "hr": "field_95", },
-    {"banner": "job_title", "dts_portal": "", "hr": "field_230", },
+    {
+        "banner": "temp_status",
+        "dts_portal": "",
+        "hr": "field_95",
+    },
+    {
+        "banner": "job_title",
+        "dts_portal": "",
+        "hr": "field_230",
+    },
     {"banner": "email", "dts_portal": "", "hr": "field_18", "handler": to_email},
-    {"banner": "empclass_desc", "dts_portal": "", "hr": "field_251", },
-    {"banner": "divn_name", "dts_portal": "", "hr": "field_250", },
-    {"banner": "fullname", "dts_portal": "", "hr": "field_17", "handler": parse_name, },
-    {"banner": "posn", "dts_portal": "", "hr": "field_248", },
-    {"banner": "hiredate", "dts_portal": "", "hr": "field_264", "handler": format_date}
+    {
+        "banner": "empclass_desc",
+        "dts_portal": "",
+        "hr": "field_251",
+    },
+    {
+        "banner": "divn_name",
+        "dts_portal": "",
+        "hr": "field_250",
+    },
+    {
+        "banner": "fullname",
+        "dts_portal": "",
+        "hr": "field_17",
+        "handler": parse_name,
+    },
+    {
+        "banner": "posn",
+        "dts_portal": "",
+        "hr": "field_248",
+    },
+    {"banner": "hiredate", "dts_portal": "", "hr": "field_264", "handler": format_date},
 ]
 
 NAME_FIELD = {"hr": "field_17"}
@@ -106,12 +143,15 @@ def get_emails_data():
     """
     employee_emails = {}
 
-    smbclient.ClientConfig(username=os.getenv("SHAREDDRIVE_USERNAME"), password=os.getenv("SHAREDDRIVE_PASSWORD"))
+    smbclient.ClientConfig(
+        username=os.getenv("SHAREDDRIVE_USERNAME"),
+        password=os.getenv("SHAREDDRIVE_PASSWORD"),
+    )
 
     emails_csv_path = os.getenv("SHAREDDRIVE_FILEPATH")
     # variables stored in json objects do not work well with \, replace / in stored path with \
     emails_csv = emails_csv_path.replace("/", "\\")
-    with smbclient.open_file(emails_csv, mode='r') as emails:
+    with smbclient.open_file(emails_csv, mode="r") as emails:
         reader = csv.DictReader(emails)
         data = [row for row in reader]
 
@@ -121,7 +161,7 @@ def get_emails_data():
             # all contractors have ID 999, this will not collect their emails
             employee_emails[row.get("employeeID")] = {
                 "email": row.get("EmailAddress"),
-                "name": row.get("Name")
+                "name": row.get("Name"),
             }
 
     return employee_emails
@@ -144,7 +184,9 @@ def update_emails(records_hr, employee_emails):
                 r_hr["email"] = employee["email"]
         except KeyError:
             in_banner_no_email = in_banner_no_email + 1
-    logging.info(f'{in_banner_no_email} records in banner are not in ctm email list (based on user id)')
+    logging.info(
+        f"{in_banner_no_email} records in banner are not in ctm email list (based on user id)"
+    )
     return records_hr
 
 
@@ -155,7 +197,9 @@ def create_placeholder_email(record, name_field):
     :param name_field: name field in knack
     :return: temporary placeholder email
     """
-    email = f"{record[name_field]['first']}.{record[name_field]['last']}@austintexas.gov"
+    email = (
+        f"{record[name_field]['first']}.{record[name_field]['last']}@austintexas.gov"
+    )
     logging.info(f"setting placeholder email {email}")
     return email
 
@@ -214,8 +258,19 @@ def is_different(record_hr, record_knack):
     return False
 
 
-def build_payload(records_knack, records_hr, pk_field, status_field, password_field, created_date_field, class_field,
-                  separated_field, user_role_field, email_field, name_field):
+def build_payload(
+    records_knack,
+    records_hr,
+    pk_field,
+    status_field,
+    password_field,
+    created_date_field,
+    class_field,
+    separated_field,
+    user_role_field,
+    email_field,
+    name_field,
+):
     """
     compare the hr records against knack records and return those records which
     are different or are new
@@ -250,8 +305,10 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                     r_hr[status_field] = "active"
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
-                    if r_hr[email_field]['email'] == 'no email':
-                        r_hr[email_field]['email'] = create_placeholder_email(r_hr, name_field)
+                    if r_hr[email_field]["email"] == "no email":
+                        r_hr[email_field]["email"] = create_placeholder_email(
+                            r_hr, name_field
+                        )
                     payload.append(r_hr)
                 break
         # employee id number not in knack records
@@ -264,8 +321,8 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
             r_hr[created_date_field] = today
             # set all new users as "Staff", which is profile_7 in knack HR app
             r_hr[user_role_field] = ["profile_7"]
-            if r_hr[email_field]['email'] == 'no email':
-                r_hr[email_field]['email'] = create_placeholder_email(r_hr, name_field)
+            if r_hr[email_field]["email"] == "no email":
+                r_hr[email_field]["email"] = create_placeholder_email(r_hr, name_field)
             payload.append(r_hr)
 
     inactivate = 0
@@ -279,7 +336,11 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
                 matched = True
                 break
         # if employee is a contractor, they wont be in banner. do not mark as inactive
-        if not matched and r_knack[status_field] != "inactive" and r_knack[class_field] != "Contract":
+        if (
+            not matched
+            and r_knack[status_field] != "inactive"
+            and r_knack[class_field] != "Contract"
+        ):
             record_id = r_knack["id"]
             inactivate = inactivate + 1
             payload.append({"id": record_id, status_field: "inactive"})
@@ -290,8 +351,8 @@ def build_payload(records_knack, records_hr, pk_field, status_field, password_fi
 
 
 def random_password(numchars=32):
-    """ generate a random password with at least 1 lowercase, uppercase, and special
-    char """
+    """generate a random password with at least 1 lowercase, uppercase, and special
+    char"""
     # i don't know what knack considers a special character, but it's something less
     # than string.punctuation
     special_chars = "!#$%&"
@@ -309,8 +370,8 @@ def random_password(numchars=32):
 
 
 def set_passwords(records, password_field):
-    """ A password field is required when creating new users. so we generate one here.
-    The user is expected to sign in with Active Directory, they will not use this 
+    """A password field is required when creating new users. so we generate one here.
+    The user is expected to sign in with Active Directory, they will not use this
     password."""
     for r in records:
         r[password_field] = random_password()
@@ -340,7 +401,7 @@ def remove_empty_emails(payload, email_field, name_field):
 
 
 def format_errors(error_list, record):
-    """ generate an error report that will be mildly readable in an email """
+    """generate an error report that will be mildly readable in an email"""
     separator = "-" * 10
     msgs = "\n".join([e["message"] for e in error_list])
     record_props = "\n".join([str(v) for v in record.values()])
@@ -371,8 +432,19 @@ def main():
     separated_field = SEPARATED_FIELD[KNACK_APP_NAME]
     name_field = NAME_FIELD[KNACK_APP_NAME]
     user_role_field = USER_ROLE_FIELD[KNACK_APP_NAME]
-    payload = build_payload(records_knack, records_mapped, pk_field, status_field, password_field, created_date_field,
-                            class_field, separated_field, user_role_field, email_field, name_field)
+    payload = build_payload(
+        records_knack,
+        records_mapped,
+        pk_field,
+        status_field,
+        password_field,
+        created_date_field,
+        class_field,
+        separated_field,
+        user_role_field,
+        email_field,
+        name_field,
+    )
     cleaned_payload = remove_empty_emails(payload, email_field, name_field)
 
     logging.info(f"{len(cleaned_payload)} total records to process in Knack.")
@@ -400,4 +472,3 @@ if __name__ == "__main__":
     errors = main()
     if errors:
         raise Exception("".join(errors))
-
