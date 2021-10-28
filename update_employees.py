@@ -308,9 +308,9 @@ def build_payload(
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     if r_hr[email_field]["email"] == "no email":
-                        r_hr[email_field]["email"] = create_placeholder_email(
-                            r_hr, name_field
-                        )
+                        # If banner and CTM do not have emails for a user in knack, use the knack record email
+                        # record should still be added to payload in case other fields also differ
+                        r_hr[email_field]["email"] = r_knack[email_field]["email"]
                     payload.append(r_hr)
                 break
         # employee id number not in knack records
