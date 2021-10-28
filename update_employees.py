@@ -197,8 +197,10 @@ def create_placeholder_email(record, name_field):
     :param name_field: name field in knack
     :return: temporary placeholder email
     """
+    # first name in some records includes middle initial, we only want the first name
+    first_name = record[name_field]['first'].split()[0]
     email = (
-        f"{record[name_field]['first']}.{record[name_field]['last']}@austintexas.gov"
+        f"{first_name}.{record[name_field]['last']}@austintexas.gov"
     )
     logging.info(f"setting placeholder email {email}")
     return email
@@ -306,9 +308,9 @@ def build_payload(
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     if r_hr[email_field]["email"] == "no email":
-                        r_hr[email_field]["email"] = create_placeholder_email(
-                            r_hr, name_field
-                        )
+                        # If banner and CTM do not have emails for a user in knack, use the knack record email
+                        # record should still be added to payload in case other fields also differ
+                        r_hr[email_field]["email"] = r_knack[email_field]["email"]
                     payload.append(r_hr)
                 break
         # employee id number not in knack records
@@ -396,7 +398,6 @@ def remove_empty_emails(payload, email_field, name_field):
             # if an item in the payload doesn't have an email
             # that payload item is being set as inactive
             cleaned_payload.append(r)
-            logging.info(f"Marking inactive: {r[name_field]}")
     return cleaned_payload
 
 
