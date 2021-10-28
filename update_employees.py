@@ -197,8 +197,10 @@ def create_placeholder_email(record, name_field):
     :param name_field: name field in knack
     :return: temporary placeholder email
     """
+    # first name in some records includes middle initial, we only want the first name
+    first_name = record[name_field]['first'].split()[0]
     email = (
-        f"{record[name_field]['first']}.{record[name_field]['last']}@austintexas.gov"
+        f"{first_name}.{record[name_field]['last']}@austintexas.gov"
     )
     logging.info(f"setting placeholder email {email}")
     return email
@@ -396,7 +398,6 @@ def remove_empty_emails(payload, email_field, name_field):
             # if an item in the payload doesn't have an email
             # that payload item is being set as inactive
             cleaned_payload.append(r)
-            logging.info(f"Marking inactive: {r[name_field]}")
     return cleaned_payload
 
 
