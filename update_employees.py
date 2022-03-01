@@ -198,10 +198,8 @@ def create_placeholder_email(record, name_field):
     :return: temporary placeholder email
     """
     # first name in some records includes middle initial, we only want the first name
-    first_name = record[name_field]['first'].split()[0]
-    email = (
-        f"{first_name}.{record[name_field]['last']}@austintexas.gov"
-    )
+    first_name = record[name_field]["first"].split()[0]
+    email = f"{first_name}.{record[name_field]['last']}@austintexas.gov"
     logging.info(f"setting placeholder email {email}")
     return email
 
@@ -272,6 +270,7 @@ def build_payload(
     user_role_field,
     email_field,
     name_field,
+    result,
 ):
     """
     compare the hr records against knack records and return those records which
@@ -287,9 +286,12 @@ def build_payload(
     :param user_role_field: field in knack app to specify Staff, Supervisor etc
     :param email_field: field in knack for email
     :param name_field: field in knack for user's first and last name
+    :param result: dict to contain log of changes
     :return:
     """
     payload = []
+    result["updates"] = []
+    result["additions"] = []
     logging.info("Generating payload...")
     # for each banner record check knack records comparing pk to see if banner record exists in knack
     for r_hr in records_hr:
@@ -312,6 +314,7 @@ def build_payload(
                         # record should still be added to payload in case other fields also differ
                         r_hr[email_field]["email"] = r_knack[email_field]["email"]
                     payload.append(r_hr)
+                    result["updates"].append((r_hr[name_field]))
                 break
         # employee id number not in knack records
         if not exists_in_knack:
@@ -326,8 +329,10 @@ def build_payload(
             if r_hr[email_field]["email"] == "no email":
                 r_hr[email_field]["email"] = create_placeholder_email(r_hr, name_field)
             payload.append(r_hr)
+            result["additions"].append((r_hr[name_field]))
 
     inactivate = 0
+    result["inactivate"] = []
     # identify users which are no longer in Banner and therefore need to be deactivated
     for r_knack in records_knack:
         matched = False
@@ -346,6 +351,7 @@ def build_payload(
             record_id = r_knack["id"]
             inactivate = inactivate + 1
             payload.append({"id": record_id, status_field: "inactive"})
+            result["inactivate"].append(r_knack[name_field])
 
     logging.info(f"{inactivate} records to mark inactive.")
 
@@ -414,6 +420,8 @@ def main():
     KNACK_APP_ID = os.getenv("KNACK_APP_ID")
     KNACK_API_KEY = os.getenv("KNACK_API_KEY")
 
+    result = {}
+
     records_hr_banner = get_employee_data()
     employee_emails = get_emails_data()
     records_hr_emails = update_emails(records_hr_banner, employee_emails)
@@ -445,12 +453,13 @@ def main():
         user_role_field,
         email_field,
         name_field,
+        result,
     )
     cleaned_payload = remove_empty_emails(payload, email_field, name_field)
 
     logging.info(f"{len(cleaned_payload)} total records to process in Knack.")
 
-    errors = []
+    result["errors"] = []
     for record in cleaned_payload:
         method = "update" if record.get("id") else "create"
         try:
@@ -458,18 +467,18 @@ def main():
         except requests.HTTPError as e:
             if e.response.status_code == 400:
                 errors_list = e.response.json()["errors"]
-                errors.append(format_errors(errors_list, record))
+                result["errors"].append(format_errors(errors_list, record))
                 continue
             else:
                 # if we get an error that is not 400, that error is raised, but we won't see previous errors
                 raise e
 
-    logging.info(f"Update complete. {len(errors)} errors.")
-    return errors
+    logging.info(f"Update complete. {len(result['errors'])} errors.")
+    return result
 
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-    errors = main()
-    if errors:
-        raise Exception("".join(errors))
+    script_result = main()
+    if script_result["errors"]:
+        raise Exception("".join(script_result["errors"]))
