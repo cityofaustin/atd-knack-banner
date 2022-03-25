@@ -33,7 +33,7 @@ months_dict = {
     "November": "11",
     "December": "12",
 }
-today = date.today().strftime("%/%d/%Y")
+today = date.today().strftime("%m/%d/%Y")
 
 
 def parse_name(full_name):
@@ -474,11 +474,18 @@ def main():
                 raise e
 
     logging.info(f"Update complete. {len(result['errors'])} errors.")
+    logging.info(result)
     return result
 
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+    logging.getLogger("smbprotocol").disabled = True
+    logging.getLogger("smbprotocol.transport").disabled = True
+    logging.getLogger("smbprotocol.open").disabled = True
+    logging.getLogger("smbprotocol.session").disabled = True
+    logging.getLogger("smbprotocol.connection").disabled = True
+    logging.getLogger("smbprotocol.tree").disabled = True
     script_result = main()
     if script_result["errors"]:
         raise Exception("".join(script_result["errors"]))
