@@ -200,6 +200,7 @@ def create_placeholder_email(record, name_field):
     # first name in some records includes middle initial, we only want the first name
     first_name = record[name_field]["first"].split()[0]
     email = f"{first_name}.{record[name_field]['last']}@austintexas.gov"
+    email = email.replace(' ', '')
     logging.info(f"setting placeholder email {email}")
     return email
 
