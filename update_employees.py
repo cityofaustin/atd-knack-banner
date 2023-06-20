@@ -374,8 +374,6 @@ def main():
 
     logging.info("Getting employee data from Banner...")
     records_hr_banner = get_employee_data()
-    # employee_emails = get_emails_data()
-    # records_hr_emails = update_emails(records_hr_banner, employee_emails)
     logging.info(f"Got {len(records_hr_banner)} records from Banner.")
     records_mapped = map_records(records_hr_banner, FIELD_MAP, KNACK_APP_NAME)
 
