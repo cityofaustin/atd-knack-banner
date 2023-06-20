@@ -24,7 +24,7 @@ And if an employee ID is present in Knack but marked as "Separated" in Knack, th
 
 Create a file called `env_file` with the variables defined in the `env_template` example.
 
-Run the `update_employees.py` script, mounting your local copy of the repo into the container.
+Connect to COA VPN, then run the `update_employees.py` script, mounting your local copy of the repo into the container.
 
 ```
 $ docker run -it --rm --env-file env_file -v ${PWD}:/app atddocker/atd-knack-banner:production ./update_employees.py
