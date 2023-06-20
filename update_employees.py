@@ -1,8 +1,11 @@
 #!/usr/bin/env python
-# docker run -it --rm --env-file env_file -v /Users/john/Dropbox/atd/atd-knack-banner:/app atddocker/atd-knack-banner ./update_employees.py
 """
 Get employee data from the human resource system (Banner) and update records in Knack
 apps.
+
+docker run -it --rm --env-file env_file \
+    -v ${PWD}:/app \
+    atddocker/atd-knack-banner:production ./update_employees.py
 """
 import json
 import logging
@@ -16,7 +19,7 @@ from datetime import date
 import knackpy
 import requests
 import wddx
-import smbclient
+
 
 # date dictionary to match months with string format in knack dates
 months_dict = {
@@ -134,60 +137,6 @@ def get_employee_data():
     json_clean = json_raw[0].replace("//", "")
     records_hr_unfiltered = json.loads(json_clean)
     return drop_empty_positions(records_hr_unfiltered)
-
-
-def get_emails_data():
-    """
-    Read csv from shared drive with employee emails
-    :return: dictionary of emails
-    """
-    employee_emails = {}
-
-    smbclient.ClientConfig(
-        username=os.getenv("SHAREDDRIVE_USERNAME"),
-        password=os.getenv("SHAREDDRIVE_PASSWORD"),
-    )
-
-    emails_csv_path = os.getenv("SHAREDDRIVE_FILEPATH")
-    # variables stored in json objects do not work well with \, replace / in stored path with \
-    emails_csv = emails_csv_path.replace("/", "\\")
-    with smbclient.open_file(emails_csv, mode="r") as emails:
-        reader = csv.DictReader(emails)
-        data = [row for row in reader]
-
-    for row in data:
-        # check if employeeID exists for record
-        if row.get("employeeID"):
-            # all contractors have ID 999, this will not collect their emails
-            employee_emails[row.get("employeeID")] = {
-                "email": row.get("EmailAddress"),
-                "name": row.get("Name"),
-            }
-
-    return employee_emails
-
-
-def update_emails(records_hr, employee_emails):
-    """
-    Compare records from banner to list of emails from CTM
-    if emails do not match,
-    :param records_hr: list of records from hr
-    :param employee_emails: dictionary of employee ids / emails
-    :return: records_hr with updated emails
-    """
-    in_banner_no_email = 0
-    for r_hr in records_hr:
-        pk_hr = r_hr["pidm"]
-        try:
-            employee = employee_emails[str(pk_hr)]
-            if r_hr["email"] != employee["email"] and len(employee["email"]) > 0:
-                r_hr["email"] = employee["email"]
-        except KeyError:
-            in_banner_no_email = in_banner_no_email + 1
-    logging.info(
-        f"{in_banner_no_email} records in banner are not in ctm email list (based on user id)"
-    )
-    return records_hr
 
 
 def create_placeholder_email(record, name_field):
@@ -311,7 +260,7 @@ def build_payload(
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     if r_hr[email_field]["email"] == "no email":
-                        # If banner and CTM do not have emails for a user in knack, use the knack record email
+                        # If banner does not have an email for a user in knack, use the knack record email
                         # record should still be added to payload in case other fields also differ
                         r_hr[email_field]["email"] = r_knack[email_field]["email"]
                     payload.append(r_hr)
@@ -423,15 +372,18 @@ def main():
 
     result = {}
 
+    logging.info("Getting employee data from Banner...")
     records_hr_banner = get_employee_data()
-    employee_emails = get_emails_data()
-    records_hr_emails = update_emails(records_hr_banner, employee_emails)
-    records_mapped = map_records(records_hr_emails, FIELD_MAP, KNACK_APP_NAME)
+    logging.info(f"Got {len(records_hr_banner)} records from Banner.")
+    records_mapped = map_records(records_hr_banner, FIELD_MAP, KNACK_APP_NAME)
 
     # use knackpy to get records from knack hr object
     knack_obj = ACCOUNTS_OBJS[KNACK_APP_NAME]
+    logging.info(f"Initializing Knack app...")
     app = knackpy.App(app_id=KNACK_APP_ID, api_key=KNACK_API_KEY)
+    logging.info(f"Getting employee data from Knack app...")
     records_knack = app.get(knack_obj)
+    logging.info(f"Got {len(records_knack)} records from Knack.")
 
     pk_field = get_primary_key_field(FIELD_MAP, KNACK_APP_NAME)
     status_field = USER_STATUS_FIELD[KNACK_APP_NAME]
@@ -442,6 +394,7 @@ def main():
     separated_field = SEPARATED_FIELD[KNACK_APP_NAME]
     name_field = NAME_FIELD[KNACK_APP_NAME]
     user_role_field = USER_ROLE_FIELD[KNACK_APP_NAME]
+
     payload = build_payload(
         records_knack,
         records_mapped,
@@ -481,12 +434,6 @@ def main():
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-    logging.getLogger("smbprotocol").disabled = True
-    logging.getLogger("smbprotocol.transport").disabled = True
-    logging.getLogger("smbprotocol.open").disabled = True
-    logging.getLogger("smbprotocol.session").disabled = True
-    logging.getLogger("smbprotocol.connection").disabled = True
-    logging.getLogger("smbprotocol.tree").disabled = True
     script_result = main()
     if script_result["errors"]:
         raise Exception("".join(script_result["errors"]))
