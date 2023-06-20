@@ -6,7 +6,6 @@ The script uses the employee ID field to identify new vs existing employees. If 
 
 As well, if any of the following data in Banner is different from data in Knack, the Knack record will be updated to match Banner.
 
-- Employee ID: if the employee ID is not found in Knack, a new Knack user will be created
 - Temporary vs full-time status
 - Job title
 - Email address
