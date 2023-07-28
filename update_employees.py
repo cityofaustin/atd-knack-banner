@@ -152,7 +152,7 @@ def create_placeholder_email(record, name_field):
     # first name in some records includes middle initial, we only want the first name
     first_name = record[name_field]["first"].split()[0]
     email = f"{first_name}.{record[name_field]['last']}@austintexas.gov"
-    email = email.replace(' ', '')
+    email = email.replace(" ", "")
     logging.info(f"setting placeholder email {email}")
     return email
 
@@ -199,11 +199,19 @@ def is_different(record_hr, record_knack):
     for key, val in record_hr.items():
         val_knack = record_knack[key]
         # unpack dicts, because the knack name field contains a "formatted_value" key
-        # which we want to ignore, because it's a field config prop that we don't want
+        # which we want to ignore, because it's a field config prop that we don't
         # need to stay in sync w/
         if isinstance(val, dict):
             for _key, _val in val.items():
-                if val_knack[_key] != val[_key]:
+                if val_knack[_key] != _val:
+                    # If banner does not have an email for a user in knack, we should use the
+                    # knack record email - and ignore this difference
+                    if (
+                        _key == "email"
+                        and _val == "no email"
+                        and val_knack[_key] != "no email"
+                    ):
+                        continue
                     return True
             continue
         if val_knack != val:
@@ -262,15 +270,12 @@ def build_payload(
                     r_hr[status_field] = "active"
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
-                    if r_hr[email_field]["email"] == "no email":
-                        # If banner does not have an email for a user in knack, use the knack record email
-                        # record should still be added to payload in case other fields also differ
-                        r_hr[email_field]["email"] = r_knack[email_field]["email"]
                     payload.append(r_hr)
                     result["updates"].append((r_hr[name_field]))
                 break
         # employee id number not in knack records
         if not exists_in_knack:
+
             # A password field is required when creating new users. so we generate one here.
             # The user is expected to sign in with Active Directory, they will not use this password.
             r_hr[password_field] = random_password()
@@ -376,6 +381,7 @@ def main():
 
     logging.info("Getting employee data from Banner...")
     records_hr_banner = get_employee_data()
+
     logging.info(f"Got {len(records_hr_banner)} records from Banner.")
     records_mapped = map_records(records_hr_banner, FIELD_MAP, KNACK_APP_NAME)
 
@@ -416,9 +422,11 @@ def main():
     logging.info(f"{len(cleaned_payload)} total records to process in Knack.")
 
     result["errors"] = []
+
     for record in cleaned_payload:
         method = "update" if record.get("id") else "create"
         try:
+            logging.info(f"{method} {record[email_field]['email']}")
             app.record(data=record, method=method, obj=knack_obj)
         except requests.HTTPError as e:
             if e.response.status_code == 400:
