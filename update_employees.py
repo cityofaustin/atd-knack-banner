@@ -21,6 +21,9 @@ import requests
 import wddx
 
 
+# this can be changed to an env var to support support multiple Knakc apps
+KNACK_APP_NAME = "hr"
+
 # date dictionary to match months with string format in knack dates
 months_dict = {
     "January": "01",
@@ -366,7 +369,6 @@ def format_errors(error_list, record):
 
 
 def main():
-    KNACK_APP_NAME = os.getenv("KNACK_APP_NAME")
     KNACK_APP_ID = os.getenv("KNACK_APP_ID")
     KNACK_API_KEY = os.getenv("KNACK_API_KEY")
 
