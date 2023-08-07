@@ -308,7 +308,8 @@ def build_payload(
         ):
             record_id = r_knack["id"]
             inactivate = inactivate + 1
-            payload.append({"id": record_id, status_field: "inactive"})
+            # we include the email field in the payload only for logging purposes
+            payload.append({"id": record_id, status_field: "inactive", email_field: r_knack[email_field] })
             result["inactivate"].append(r_knack[name_field])
 
     logging.info(f"{inactivate} records to mark inactive.")
