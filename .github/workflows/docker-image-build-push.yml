@@ -5,26 +5,26 @@ on:
   push:
     branches:
       - production
+  workflow_dispatch:
 
 jobs:
   main:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
       - name: Login to DockerHub
-        uses: docker/login-action@v1 
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
+          platforms: linux/amd64
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/atd-knack-banner:production
-            ${{ secrets.DOCKER_USERNAME }}/atd-knack-banner:staging
-            ${{ secrets.DOCKER_USERNAME }}/atd-knack-banner:latest
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
