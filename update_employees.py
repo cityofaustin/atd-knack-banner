@@ -13,7 +13,6 @@ import os
 import secrets
 import string
 import sys
-import csv
 from datetime import date
 
 import knackpy
@@ -21,7 +20,7 @@ import requests
 import wddx
 
 
-# this can be changed to an env var to support support multiple Knakc apps
+# this can be changed to an env var to support multiple Knack apps
 KNACK_APP_NAME = "hr"
 
 # date dictionary to match months with string format in knack dates
@@ -431,9 +430,13 @@ def main():
             app.record(data=record, method=method, obj=knack_obj)
         except requests.HTTPError as e:
             if e.response.status_code == 400:
-                errors_list = e.response.json()["errors"]
-                result["errors"].append(format_errors(errors_list, record))
-                continue
+                if record["field_230"] == "Crossing Guard":
+                    logging.info(f"Error with Crossing Guard record {record[email_field]['email']}, skipped record {method}")
+                    continue
+                else:
+                    errors_list = e.response.json()["errors"]
+                    result["errors"].append(format_errors(errors_list, record))
+                    continue
             else:
                 # if we get an error that is not 400, that error is raised, but we won't see previous errors
                 raise e
