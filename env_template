@@ -1,4 +1,4 @@
-BANNER_API_KEY=
-BANNER_URL=
-KNACK_APP_ID=
-KNACK_API_KEY=
+BANNER_API_KEY=<see HRD Banner API item in 1pass>
+BANNER_URL=<see HRD Banner API item in 1pass>
+KNACK_APP_ID=<see Knack Human Resources (HR) item in pass>
+KNACK_API_KEY=<see Knack Human Resources (HR) item in pass>
