@@ -291,9 +291,6 @@ def build_payload(
             # hand empty emails
             if not r_hr[email_field]["email"]:
                 r_hr[email_field]["email"] = create_placeholder_email(r_hr, name_field)
-
-                ## check if email already exists?
-
             # A password field is required when creating new users. so we generate one here.
             # The user is expected to sign in with Active Directory, they will not use this password.
             r_hr[password_field] = random_password()
