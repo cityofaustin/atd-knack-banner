@@ -14,7 +14,7 @@ import os
 import secrets
 import string
 import sys
-from time import time
+from time import time, sleep
 
 import knackpy
 import requests
@@ -150,18 +150,16 @@ def get_employee_data():
     return json.loads(json_clean)
 
 
-def create_placeholder_email(record, name_field):
+def create_placeholder_email():
     """
-    Emails are required for Knack records. We can guess a temporary email for a user so they can be added to knack
-    :param record: employee record
-    :param name_field: name field in knack
-    :return: temporary placeholder email
+    Emails are required for Knack user records. When an employee doesn't have an email
+    address, we generate a unique address using the current timestamp
     """
     # first name in some records includes middle initial, we only want the first name
-    first_name = record[name_field]["first"].split()[0]
-    email = f"{first_name}.{record[name_field]['last']}@austintexas.gov"
-    email = email.replace(" ", "")
+    email = "no_email_" + str(time()) + "@austintexas.gov"
     logging.info(f"setting placeholder email {email}")
+    # sleep to ensure unique timestamps
+    sleep(.001)
     return email
 
 
@@ -290,7 +288,7 @@ def build_payload(
         if not exists_in_knack:
             # hand empty emails
             if not r_hr[email_field]["email"]:
-                r_hr[email_field]["email"] = create_placeholder_email(r_hr, name_field)
+                r_hr[email_field]["email"] = create_placeholder_email()
             # A password field is required when creating new users. so we generate one here.
             # The user is expected to sign in with Active Directory, they will not use this password.
             r_hr[password_field] = random_password()
@@ -321,18 +319,12 @@ def build_payload(
         ):
             record_id = r_knack["id"]
             inactivate = inactivate + 1
-            # set the deactivated user email to a unique value
-            # this ensures that re-hired temp/seasonal employees can be re-created under
-            # a different employee ID
-            dectivated_email = r_knack[email_field]
-            dectivated_email["email"] = (
-                "inactive_" + str(int(time())) + "_" + dectivated_email["email"]
-            )
+            # we include the `email_field` here for logging purposes only
             payload.append(
                 {
                     "id": record_id,
                     status_field: "inactive",
-                    email_field: dectivated_email,
+                    email_field: r_knack[email_field],
                 }
             )
             result["inactivate"].append(r_knack[name_field])
@@ -433,8 +425,7 @@ def main():
     result["updates"] = [record for record in payload if record.get("id")]
     result["errors"] = []
 
-    # process updates before additions to avoid email address conflicts
-    for record in result["updates"] + result["additions"]:
+    for record in payload:
         method = "update" if record.get("id") else "create"
         try:
             logging.info(f"{method} {record[email_field]['email']}")
