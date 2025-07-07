@@ -324,7 +324,6 @@ def build_payload(
             # set the deactivated user email to a unique value
             # this ensures that re-hired temp/seasonal employees can be re-created under
             # a different employee ID
-
             dectivated_email = r_knack[email_field]
             dectivated_email["email"] = (
                 "inactive_" + str(int(time())) + "_" + dectivated_email["email"]
