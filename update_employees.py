@@ -7,13 +7,14 @@ docker run -it --rm --env-file env_file \
     -v ${PWD}:/app \
     atddocker/atd-knack-banner:production ./update_employees.py
 """
+from datetime import date
 import json
 import logging
 import os
 import secrets
 import string
 import sys
-from datetime import date
+from time import time
 
 import knackpy
 import requests
@@ -24,7 +25,7 @@ import wddx
 KNACK_APP_NAME = "hr"
 
 # date dictionary to match months with string format in knack dates
-months_dict = {
+MONTHS = {
     "January": "01",
     "February": "02",
     "March": "03",
@@ -51,13 +52,13 @@ def to_string(val):
 
 
 def to_email(val):
-    return {"email": val.lower()}
+    return {"email": val.lower() if val else None}
 
 
 def format_date(val):
     # dates in banner are in this format "January, 19 1999 00:00:00"
     date_pieces = val.split()
-    month = months_dict[date_pieces[0][:-1]]
+    month = MONTHS[date_pieces[0][:-1]]
     return {"date": f"{month}/{date_pieces[1]}/{date_pieces[2]}"}
 
 
@@ -118,6 +119,15 @@ def drop_empty_positions(records_hr, key="pidm"):
     return [r for r in records_hr if r.get(key)]
 
 
+def get_employee_data_local():
+    with open("data.xml", "r") as fin:
+        records_hr_unfiltered = fin.read()
+        json_raw = wddx.loads(records_hr_unfiltered)
+        #  remove weird leading slashes from data contents
+        json_clean = json_raw[0].replace("//", "")
+        return json.loads(json_clean)
+
+
 def get_employee_data():
     """
     Request hr data from banner
@@ -137,8 +147,7 @@ def get_employee_data():
     json_raw = wddx.loads(res.text)
     #  remove weird leading slashes from data contents
     json_clean = json_raw[0].replace("//", "")
-    records_hr_unfiltered = json.loads(json_clean)
-    return drop_empty_positions(records_hr_unfiltered)
+    return json.loads(json_clean)
 
 
 def create_placeholder_email(record, name_field):
@@ -188,6 +197,14 @@ def get_primary_key_field(field_map, knack_app_name):
     return pk_field[knack_app_name]
 
 
+def handle_empty_strings(records_hr_banner):
+    """Replace empty strings with `None`"""
+    for record in records_hr_banner:
+        for key, val in record.items():
+            if val == "":
+                record[key] = None
+
+
 def is_different(record_hr, record_knack):
     """
     compare records by comparing field values
@@ -201,19 +218,17 @@ def is_different(record_hr, record_knack):
         # which we want to ignore, because it's a field config prop that we don't
         # need to stay in sync w/
         if isinstance(val, dict):
-            for _key, _val in val.items():
-                if val_knack[_key] != _val:
-                    # If banner does not have an email for a user in knack, we should use the
-                    # knack record email - and ignore this difference
-                    if (
-                        _key == "email"
-                        and _val == "no email"
-                        and val_knack[_key] != "no email"
-                    ):
+            for nested_key, nested_val in val.items():
+                if val_knack[nested_key] != nested_val:
+                    # ignore if banner does not have an email and knack does
+                    if nested_key == "email" and not nested_val:
                         continue
                     return True
             continue
         if val_knack != val:
+            logging.info(
+                f"Found difference in field {key}: new val `{val}` vs old val `{val_knack}`"
+            )
             return True
     return False
 
@@ -270,10 +285,14 @@ def build_payload(
                 # if any of the fields differ, add banner record to payload
                 if is_different(r_hr, r_knack):
                     payload.append(r_hr)
-                    result["updates"].append((r_hr[name_field]))
                 break
         # employee id number not in knack records
         if not exists_in_knack:
+            # hand empty emails
+            if not r_hr[email_field]["email"]:
+                r_hr[email_field]["email"] = create_placeholder_email(r_hr, name_field)
+
+                ## check if email already exists?
 
             # A password field is required when creating new users. so we generate one here.
             # The user is expected to sign in with Active Directory, they will not use this password.
@@ -283,10 +302,8 @@ def build_payload(
             r_hr[created_date_field] = today
             # set all new users as "Staff", which is profile_7 in knack HR app
             r_hr[user_role_field] = ["profile_7"]
-            if r_hr[email_field]["email"] == "no email":
-                r_hr[email_field]["email"] = create_placeholder_email(r_hr, name_field)
+
             payload.append(r_hr)
-            result["additions"].append((r_hr[name_field]))
 
     inactivate = 0
     result["inactivate"] = []
@@ -307,8 +324,21 @@ def build_payload(
         ):
             record_id = r_knack["id"]
             inactivate = inactivate + 1
-            # we include the email field in the payload only for logging purposes
-            payload.append({"id": record_id, status_field: "inactive", email_field: r_knack[email_field] })
+            # set the deactivated user email to a unique value
+            # this ensures that re-hired temp/seasonal employees can be re-created under
+            # a different employee ID
+
+            dectivated_email = r_knack[email_field]
+            dectivated_email["email"] = (
+                "inactive_" + str(int(time())) + "_" + dectivated_email["email"]
+            )
+            payload.append(
+                {
+                    "id": record_id,
+                    status_field: "inactive",
+                    email_field: dectivated_email,
+                }
+            )
             result["inactivate"].append(r_knack[name_field])
 
     logging.info(f"{inactivate} records to mark inactive.")
@@ -344,27 +374,6 @@ def set_passwords(records, password_field):
     return
 
 
-def remove_empty_emails(payload, email_field, name_field):
-    """
-    Knack won't allow records to be added without valid emails
-    :param payload: list of records payload
-    :param email_field: email field to check from knack app
-    :param name_field: name field for easier to read logging
-    :return: list of payload records with valid emails
-    """
-    cleaned_payload = []
-    for r in payload:
-        try:
-            if r[email_field]["email"] != "no email":
-                cleaned_payload.append(r)
-                logging.info(f"Updating: {r[name_field]}")
-        except KeyError:
-            # if an item in the payload doesn't have an email
-            # that payload item is being set as inactive
-            cleaned_payload.append(r)
-    return cleaned_payload
-
-
 def format_errors(error_list, record):
     """generate an error report that will be mildly readable in an email"""
     separator = "-" * 10
@@ -380,9 +389,13 @@ def main():
     result = {}
 
     logging.info("Getting employee data from Banner...")
-    records_hr_banner = get_employee_data()
+    # records_hr_banner = get_employee_data()
+    records_hr_banner = get_employee_data_local()
 
     logging.info(f"Got {len(records_hr_banner)} records from Banner.")
+
+    records_hr_banner = drop_empty_positions(records_hr_banner)
+    handle_empty_strings(records_hr_banner)
     records_mapped = map_records(records_hr_banner, FIELD_MAP, KNACK_APP_NAME)
 
     # use knackpy to get records from knack hr object
@@ -417,26 +430,24 @@ def main():
         name_field,
         result,
     )
-    cleaned_payload = remove_empty_emails(payload, email_field, name_field)
 
-    logging.info(f"{len(cleaned_payload)} total records to process in Knack.")
+    logging.info(f"{len(payload)} total records to process in Knack.")
 
+    result["additions"] = [record for record in payload if not record.get("id")]
+    result["updates"] = [record for record in payload if record.get("id")]
     result["errors"] = []
 
-    for record in cleaned_payload:
+    # process updates before additions to avoid email address conflicts
+    for record in result["updates"] + result["additions"]:
         method = "update" if record.get("id") else "create"
         try:
             logging.info(f"{method} {record[email_field]['email']}")
             app.record(data=record, method=method, obj=knack_obj)
         except requests.HTTPError as e:
             if e.response.status_code == 400:
-                if record["field_230"] == "Crossing Guard":
-                    logging.info(f"Error with Crossing Guard record {record[email_field]['email']}, skipped record {method}")
-                    continue
-                else:
-                    errors_list = e.response.json()["errors"]
-                    result["errors"].append(format_errors(errors_list, record))
-                    continue
+                errors_list = e.response.json()["errors"]
+                result["errors"].append(format_errors(errors_list, record))
+                continue
             else:
                 # if we get an error that is not 400, that error is raised, but we won't see previous errors
                 raise e
