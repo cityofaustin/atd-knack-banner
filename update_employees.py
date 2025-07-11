@@ -119,15 +119,6 @@ def drop_empty_positions(records_hr, key="pidm"):
     return [r for r in records_hr if r.get(key)]
 
 
-def get_employee_data_local():
-    with open("data.xml", "r") as fin:
-        records_hr_unfiltered = fin.read()
-        json_raw = wddx.loads(records_hr_unfiltered)
-        #  remove weird leading slashes from data contents
-        json_clean = json_raw[0].replace("//", "")
-        return json.loads(json_clean)
-
-
 def get_employee_data():
     """
     Request hr data from banner
@@ -159,7 +150,7 @@ def create_placeholder_email():
     email = "no_email_" + str(time()) + "@austintexas.gov"
     logging.info(f"setting placeholder email {email}")
     # sleep to ensure unique timestamps
-    sleep(.001)
+    sleep(0.001)
     return email
 
 
@@ -218,9 +209,9 @@ def is_different(record_hr, record_knack):
         if isinstance(val, dict):
             for nested_key, nested_val in val.items():
                 if val_knack[nested_key] != nested_val:
-                    # ignore if banner does not have an email and knack does
-                    if nested_key == "email" and not nested_val:
-                        continue
+                    logging.info(
+                        f"Found difference in field {key} -> {nested_key}: new val `{nested_val}` vs old val `{val_knack[nested_key]}`"
+                    )
                     return True
             continue
         if val_knack != val:
@@ -274,7 +265,11 @@ def build_payload(
             pk_knack = r_knack[pk_field]
             if pk_hr == pk_knack:
                 exists_in_knack = True
+                # assign Knack id to this records
                 r_hr["id"] = r_knack["id"]
+                # fill in missing email addresses from Knack - some employees (temp, seasonal) do not have email addresses
+                if not r_hr[email_field]["email"]:
+                    r_hr[email_field]["email"] = r_knack[email_field]["email"]
                 # Check if employee is marked as inactive in knack
                 # and update status_field to active since they are in banner
                 # unless they have been marked as Separated in knack
@@ -286,7 +281,7 @@ def build_payload(
                 break
         # employee id number not in knack records
         if not exists_in_knack:
-            # hand empty emails
+            # handle empty/missing emails
             if not r_hr[email_field]["email"]:
                 r_hr[email_field]["email"] = create_placeholder_email()
             # A password field is required when creating new users. so we generate one here.
@@ -377,8 +372,7 @@ def main():
     result = {}
 
     logging.info("Getting employee data from Banner...")
-    # records_hr_banner = get_employee_data()
-    records_hr_banner = get_employee_data_local()
+    records_hr_banner = get_employee_data()
 
     logging.info(f"Got {len(records_hr_banner)} records from Banner.")
 
@@ -419,11 +413,11 @@ def main():
         result,
     )
 
-    logging.info(f"{len(payload)} total records to process in Knack.")
-
     result["additions"] = [record for record in payload if not record.get("id")]
     result["updates"] = [record for record in payload if record.get("id")]
     result["errors"] = []
+
+    logging.info(f"{len(result['additions'])} additions and {len(result['updates'])} updates to process in Knack.")
 
     for record in payload:
         method = "update" if record.get("id") else "create"
