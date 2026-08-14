@@ -194,6 +194,10 @@ def handle_empty_strings(records_hr_banner):
                 record[key] = None
 
 
+def drop_knack_system_records(records_knack, email_field):
+    return [r for r in records_knack if r.get(email_field).get("email")]
+
+
 def is_different(record_hr, record_knack):
     """
     compare records by comparing field values
@@ -361,7 +365,7 @@ def format_errors(error_list, record):
     """generate an error report that will be mildly readable in an email"""
     msgs = "\n".join([e["message"] for e in error_list])
     record_props = "\n".join([str(v) for v in record.values()])
-    return f"Error(s):\n{msgs}\n\nData:\n{record_props}\n\n"
+    return f"Error(s):{msgs}\n\nData:\n{record_props}\n\n"
 
 
 def main():
@@ -369,23 +373,6 @@ def main():
     KNACK_API_KEY = os.getenv("KNACK_API_KEY")
 
     result = {}
-
-    logging.info("Getting employee data from Banner...")
-    records_hr_banner = get_employee_data()
-
-    logging.info(f"Received {len(records_hr_banner)} records from Banner.")
-
-    records_hr_banner = drop_empty_positions(records_hr_banner)
-    handle_empty_strings(records_hr_banner)
-    records_mapped = map_records(records_hr_banner, FIELD_MAP, KNACK_APP_NAME)
-
-    # use knackpy to get records from knack hr object
-    knack_obj = ACCOUNTS_OBJS[KNACK_APP_NAME]
-    logging.info(f"Initializing Knack app...")
-    app = knackpy.App(app_id=KNACK_APP_ID, api_key=KNACK_API_KEY)
-    logging.info(f"Getting employee data from Knack app...")
-    records_knack = app.get(knack_obj)
-    logging.info(f"Got {len(records_knack)} records from Knack.")
 
     pk_field = get_primary_key_field(FIELD_MAP, KNACK_APP_NAME)
     status_field = USER_STATUS_FIELD[KNACK_APP_NAME]
@@ -396,6 +383,23 @@ def main():
     separated_field = SEPARATED_FIELD[KNACK_APP_NAME]
     name_field = NAME_FIELD[KNACK_APP_NAME]
     user_role_field = USER_ROLE_FIELD[KNACK_APP_NAME]
+
+    logging.info("Getting employee data from Banner...")
+    records_hr_banner = get_employee_data()
+    records_hr_banner = drop_empty_positions(records_hr_banner)
+    logging.info(f"Received {len(records_hr_banner)} records from Banner.")
+
+    handle_empty_strings(records_hr_banner)
+    records_mapped = map_records(records_hr_banner, FIELD_MAP, KNACK_APP_NAME)
+
+    # use knackpy to get records from knack hr object
+    knack_obj = ACCOUNTS_OBJS[KNACK_APP_NAME]
+    logging.info(f"Initializing Knack app...")
+    app = knackpy.App(app_id=KNACK_APP_ID, api_key=KNACK_API_KEY)
+    logging.info(f"Getting employee data from Knack app...")
+    records_knack = app.get(knack_obj)
+    records_knack = drop_knack_system_records(records_knack, email_field)
+    logging.info(f"Received {len(records_knack)} records from Knack.")
 
     payload = build_payload(
         records_knack,
@@ -416,7 +420,9 @@ def main():
     result["updates"] = [record for record in payload if record.get("id")]
     result["errors"] = []
 
-    logging.info(f"{len(result['additions'])} additions and {len(result['updates'])} updates to process in Knack.")
+    logging.info(
+        f"{len(result['additions'])} additions and {len(result['updates'])} updates to process in Knack."
+    )
 
     for record in payload:
         method = "update" if record.get("id") else "create"
