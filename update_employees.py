@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
-Get employee data from the human resource system (Banner) and update records in Knack
-apps.
+Get employee data from the human resource system (Banner) and update records in Knack HR
+app.
 
 docker run -it --rm --env-file env_file \
     -v ${PWD}:/app \
@@ -359,10 +359,9 @@ def set_passwords(records, password_field):
 
 def format_errors(error_list, record):
     """generate an error report that will be mildly readable in an email"""
-    separator = "-" * 10
     msgs = "\n".join([e["message"] for e in error_list])
     record_props = "\n".join([str(v) for v in record.values()])
-    return f"{separator}\nError(s):\n{msgs}\n\nData:\n{record_props}\n\n"
+    return f"Error(s):\n{msgs}\n\nData:\n{record_props}\n\n"
 
 
 def main():
@@ -374,7 +373,7 @@ def main():
     logging.info("Getting employee data from Banner...")
     records_hr_banner = get_employee_data()
 
-    logging.info(f"Got {len(records_hr_banner)} records from Banner.")
+    logging.info(f"Received {len(records_hr_banner)} records from Banner.")
 
     records_hr_banner = drop_empty_positions(records_hr_banner)
     handle_empty_strings(records_hr_banner)
