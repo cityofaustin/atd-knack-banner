@@ -200,7 +200,11 @@ def drop_knack_system_records(records_knack, email_field):
     The account email fields have labels but no email, for example:
         {'email': None, 'label': '[System] Knack AI'}
     """
-    return [r for r in records_knack if r.get(email_field).get("email")]
+    return [
+        r
+        for r in records_knack
+        if r.get(email_field) and r.get(email_field).get("email")
+    ]
 
 
 def is_different(record_hr, record_knack):
