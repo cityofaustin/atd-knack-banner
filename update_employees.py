@@ -195,6 +195,11 @@ def handle_empty_strings(records_hr_banner):
 
 
 def drop_knack_system_records(records_knack, email_field):
+    """
+    Knack added system controlled user accounts that we cannot edit.
+    The account email fields have labels but no email, for example:
+        {'email': None, 'label': '[System] Knack AI'}
+    """
     return [r for r in records_knack if r.get(email_field).get("email")]
 
 
